@@ -1,8 +1,10 @@
 from flask import Flask, request, send_file
+from flask_cors import CORS
 import os
 from pdf_processor.processor import process_pdf
 
 app = Flask(__name__)
+CORS(app)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -39,4 +41,4 @@ def index():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port = 5000)
+    app.run(host="0.0.0.0", debug=True, port=5000)
