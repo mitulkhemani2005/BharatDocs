@@ -2,6 +2,8 @@ import fitz
 import json
 import os
 from PIL import Image, ImageDraw, ImageFont
+from pdf_processor.translator import translate_en_to_hi
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_PATH = os.path.join(BASE_DIR, "fonts", "NotoSansDevanagari-Regular.ttf")
@@ -43,24 +45,80 @@ def apply_rectangle(page, field):
     page.draw_rect(rect, fill=(1, 1, 1), overlay=True)
 
     # Render Hindi text to image
-    img = render_hindi_image("हिंदी टेक्स्ट", rect)
+    # img = render_hindi_image("हिंदी टेक्स्ट", rect)
+    hindi_text = translate_en_to_hi(text)
+    img = render_hindi_image(hindi_text, rect)
+
 
     # Insert image into PDF
     page.insert_image(rect, stream=img)
 
 
+# def render_hindi_image(text, rect):
+#     width = int(rect.width)
+#     height = int(rect.height)
+
+#     img = Image.new("RGB", (width, height), "white")
+#     draw = ImageDraw.Draw(img)
+#     font = ImageFont.truetype(FONT_PATH, 8)
+
+#     draw.text((2, 2), text, font=font, fill="black")
+
+#     img_bytes = img_to_bytes(img)
+#     return img_bytes
 def render_hindi_image(text, rect):
     width = int(rect.width)
     height = int(rect.height)
 
+    # Create blank image
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype(FONT_PATH, 18)
 
-    draw.text((2, 2), text, font=font, fill="black")
+    # Start with a reasonable font size
+    font_size = 12
+    min_font_size = 8
 
-    img_bytes = img_to_bytes(img)
-    return img_bytes
+    while font_size >= min_font_size:
+        font = ImageFont.truetype(FONT_PATH, font_size)
+
+        lines = wrap_text(draw, text, font, width - 6)
+        line_height = font.getbbox("ह")[3] + 2
+        total_text_height = line_height * len(lines)
+
+        if total_text_height <= height - 4:
+            break
+
+        font_size -= 1
+
+    # Draw text line by line
+    y = 2
+    for line in lines:
+        draw.text((2, y), line, font=font, fill="black")
+        y += line_height
+
+    return img_to_bytes(img)
+
+def wrap_text(draw, text, font, max_width):
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        test_line = current_line + (" " if current_line else "") + word
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        text_width = bbox[2] - bbox[0]
+
+        if text_width <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
 
 
 def img_to_bytes(img):
