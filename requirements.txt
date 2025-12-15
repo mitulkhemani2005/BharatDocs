@@ -1,5 +1,6 @@
 Flask>=2.2.5
-PyMuPDF>=1.22.0
 Flask-Cors>=3.0.10
-googletrans==4.0.0-rc1
+PyMuPDF==1.26.7
 Pillow>=9.5.0
+googletrans==4.0.0-rc1
+gunicorn

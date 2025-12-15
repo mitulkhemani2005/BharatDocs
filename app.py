@@ -6,8 +6,12 @@ from pdf_processor.processor import process_pdf
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Optional but recommended
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB
+
 
 def cleanup_uploaded_pdfs():
     for filename in os.listdir(UPLOAD_DIR):
@@ -16,20 +20,31 @@ def cleanup_uploaded_pdfs():
             try:
                 os.remove(file_path)
             except Exception:
-                pass  # fail silently, never crash
+                pass
 
-@app.route('/convert', methods=['POST'])
+
+@app.route("/convert", methods=["POST"])
 def convert():
     cleanup_uploaded_pdfs()
+
     if "file" not in request.files:
         return {"error": "No file uploaded"}, 400
+
     file = request.files["file"]
+
+    if not file.filename.lower().endswith(".pdf"):
+        return {"error": "Only PDF files are allowed"}, 400
+
     input_path = os.path.join(UPLOAD_DIR, file.filename)
-    file.save(input_path)
-    # return {"message": "File uploaded successfully"}
     output_path = os.path.join(UPLOAD_DIR, "output.pdf")
-    process_pdf(input_path, output_path)
-    return send_file(output_path, as_attachment=True)
+
+    try:
+        file.save(input_path)
+        process_pdf(input_path, output_path)
+        return send_file(output_path, as_attachment=True)
+    finally:
+        cleanup_uploaded_pdfs()
+
 
 @app.route("/", methods=["GET"])
 def index():
@@ -40,5 +55,6 @@ def index():
     }
 
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", debug=True, port=5000)
+# DO NOT use app.run() in production (Render uses Gunicorn)
+if __name__ == "__main__":
+    app.run()
