@@ -1,8 +1,12 @@
 {
   "all_pages": [
     {
-      "name": "rectangle",
-      "rect": [33, 67, 295, 113]
+      "name": "rectangle1",
+      "rect": [96, 68, 296, 79]
+    },
+    {
+      "name": "rectangle2",
+      "rect": [33, 79, 296, 90]
     }
   ]
 }
