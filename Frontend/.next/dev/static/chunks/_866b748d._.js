@@ -207,7 +207,7 @@ if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelper
 
 __turbopack_context__.s([
     "default",
-    ()=>BharatDocsApp
+    ()=>HinglishDocsApp
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/jsx-dev-runtime.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$styled$2d$jsx$2f$style$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/styled-jsx/style.js [app-client] (ecmascript)");
@@ -227,7 +227,7 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 ;
-function BharatDocsApp() {
+function HinglishDocsApp() {
     _s();
     const [status, setStatus] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("idle");
     const [fileName, setFileName] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
@@ -355,14 +355,14 @@ function BharatDocsApp() {
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
                                         className: "jsx-8440a6af750485b9" + " " + "text-4xl font-bold text-gray-900 tracking-tight",
                                         children: [
-                                            "Bharat",
+                                            "Hinglish",
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                 className: "jsx-8440a6af750485b9" + " " + "text-orange-500",
                                                 children: "Docs"
                                             }, void 0, false, {
                                                 fileName: "[project]/components/bharat-docs-app.tsx",
                                                 lineNumber: 110,
-                                                columnNumber: 21
+                                                columnNumber: 23
                                             }, this)
                                         ]
                                     }, void 0, true, {
@@ -671,14 +671,22 @@ function BharatDocsApp() {
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                 className: "jsx-8440a6af750485b9" + " " + "text-gray-400 text-xs",
                                 children: [
-                                    "Made with ❤️ by ",
+                                    "Made by ",
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                         className: "jsx-8440a6af750485b9" + " " + "font-medium text-gray-600",
-                                        children: "Mitul Khemani"
+                                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("a", {
+                                            href: "https://www.linkedin.com/in/mitul-khemani/",
+                                            className: "jsx-8440a6af750485b9",
+                                            children: "Mitul Khemani"
+                                        }, void 0, false, {
+                                            fileName: "[project]/components/bharat-docs-app.tsx",
+                                            lineNumber: 200,
+                                            columnNumber: 65
+                                        }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/components/bharat-docs-app.tsx",
                                         lineNumber: 200,
-                                        columnNumber: 29
+                                        columnNumber: 21
                                     }, this)
                                 ]
                             }, void 0, true, {
@@ -728,10 +736,10 @@ function BharatDocsApp() {
         columnNumber: 5
     }, this);
 }
-_s(BharatDocsApp, "+N5VsjJAlg7HgHl1X/8vaEhdJ18=");
-_c = BharatDocsApp;
+_s(HinglishDocsApp, "+N5VsjJAlg7HgHl1X/8vaEhdJ18=");
+_c = HinglishDocsApp;
 var _c;
-__turbopack_context__.k.register(_c, "BharatDocsApp");
+__turbopack_context__.k.register(_c, "HinglishDocsApp");
 if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
     __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
 }

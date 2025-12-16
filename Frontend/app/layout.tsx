@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "BharatDocs - PDF Document Manager",
+  title: "HinglishDocs",
   description: "Upload and download PDF documents easily. Made by Mitul Khemani for New Durga Agencies, Ujjain.",
   generator: "v0.app",
   icons: {

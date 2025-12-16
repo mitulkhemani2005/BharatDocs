@@ -72,7 +72,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f40$vercel$2f$
 ;
 ;
 const metadata = {
-    title: "BharatDocs - PDF Document Manager",
+    title: "HinglishDocs",
     description: "Upload and download PDF documents easily. Made by Mitul Khemani for New Durga Agencies, Ujjain.",
     generator: "v0.app",
     icons: {

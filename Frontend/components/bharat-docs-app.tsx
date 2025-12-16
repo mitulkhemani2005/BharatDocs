@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 
 type Status = "idle" | "uploading" | "processing" | "complete"
 
-export default function BharatDocsApp() {
+export default function HinglishDocsApp() {
   const [status, setStatus] = useState<Status>("idle")
   const [fileName, setFileName] = useState<string>("")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -107,7 +107,7 @@ export default function BharatDocsApp() {
           <div className="flex items-center justify-center gap-3 mb-2">
             <FileText className="w-10 h-10 text-orange-500 animate-bounce" style={{ animationDuration: "2s" }} />
             <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
-              Bharat<span className="text-orange-500">Docs</span>
+              Hinglish<span className="text-orange-500">Docs</span>
             </h1>
           </div>
           <p className="text-gray-500 text-sm animate-fade-in" style={{ animationDelay: "0.2s" }}>
@@ -197,7 +197,7 @@ export default function BharatDocsApp() {
         {/* Footer */}
         <div className="text-center mt-4 animate-fade-in" style={{ animationDelay: "0.4s" }}>
           <p className="text-gray-400 text-xs">
-            Made with ❤️ by <span className="font-medium text-gray-600">Mitul Khemani</span>
+            Made by <span className="font-medium text-gray-600"><a href="https://www.linkedin.com/in/mitul-khemani/">Mitul Khemani</a></span>
           </p>
           <p className="text-gray-400 text-xs mt-1">
             for <span className="font-medium text-orange-500">New Durga Agencies</span>, Ujjain
