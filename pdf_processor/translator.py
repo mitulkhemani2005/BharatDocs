@@ -1,15 +1,30 @@
-from googletrans import Translator
+import requests
 import unicodedata
 
-_translator = Translator()
+LIBRE_TRANSLATE_URL = "https://libretranslate.com/translate"
 
 def translate_en_to_hi(text: str) -> str:
     if not text or not text.strip():
         return ""
 
-    result = _translator.translate(text, src="en", dest="hi")
-    hindi = result.text
+    payload = {
+        "q": text,
+        "source": "en",
+        "target": "hi",
+        "format": "text"
+    }
 
-    # Normalize Unicode (VERY important for Hindi)
+    response = requests.post(
+        LIBRE_TRANSLATE_URL,
+        data=payload,
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    hindi = response.json()["translatedText"]
+
+    # Unicode normalization for correct Hindi rendering
     hindi = unicodedata.normalize("NFC", hindi)
+
     return hindi
