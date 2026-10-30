@@ -10,8 +10,9 @@ BharatDocs translates text from configured PDF regions into Hindi, writes the re
 - Preserve detected numeric values and identifiers during translation.
 - Preview and download the translated PDF.
 - Keep each upload in a separate, short-lived session.
-- Translate locally with a bundled English-to-Hindi model; user documents stay on the computer.
-- Install the Windows desktop app once and use it without an internet connection.
+- Use the earlier Google Hindi translation when online, with the bundled English-to-Hindi model as an offline fallback.
+- Keep using the Windows desktop app without an internet connection; its local fallback remains bundled.
+- When Google Translate is available, extracted region text is sent to that service for translation. Offline fallback keeps translation on the computer.
 
 ## Requirements
 
@@ -85,7 +86,7 @@ Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload ses
 - `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
 - `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
 
-The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. Afterward, `python app.py` and the desktop app translate without contacting a translation service. The website can continue using its configured hosted backend independently.
+The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. When Google Translate cannot be reached, `python app.py` and the desktop app use this bundled model locally. Online translations use the same Google Translate path as the earlier version; translated-region text is sent to Google while that service is available.
 
 ## Build the offline Windows installer
 

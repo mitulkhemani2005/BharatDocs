@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 import os
 import threading
@@ -7,11 +9,13 @@ from app_paths import resource_root
 
 
 class TranslationError(Exception):
-    """Raised when the bundled offline translator cannot return Hindi text."""
+    """Raised when neither the online nor bundled Hindi translator can return text."""
 
 
 MODEL_DIRECTORY = resource_root() / "models" / "opus-mt-en-hi"
 _translator_lock = threading.Lock()
+_logger = logging.getLogger(__name__)
+_google_unavailable = threading.Event()
 _code_pattern = re.compile(r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\b", re.IGNORECASE)
 _number_pattern = re.compile(r"(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)")
 _common_terms = {
@@ -144,12 +148,42 @@ def _translate_piece(piece):
     return leading_whitespace + translated + trailing_whitespace
 
 
-def translate_to_hindi(text):
-    if not isinstance(text, str):
-        raise TypeError("Text to translate must be a string.")
-    if not text.strip():
-        return text
+async def _google_translate_async(text):
+    from googletrans import Translator
 
+    last_error = None
+    for service_url in ("translate.google.com", "translate.googleapis.com"):
+        try:
+            async with Translator(
+                service_urls=[service_url],
+                timeout=4,
+                raise_exception=True,
+            ) as translator:
+                result = await translator.translate(text, src="en", dest="hi")
+            return result.text
+        except Exception as error:
+            last_error = error
+    raise last_error
+
+
+@lru_cache(maxsize=2048)
+def _translate_with_google(text):
+    if _google_unavailable.is_set():
+        raise TranslationError("Google Hindi translation is unavailable.")
+    try:
+        translated = asyncio.run(_google_translate_async(text))
+    except Exception as error:
+        if not _google_unavailable.is_set():
+            _google_unavailable.set()
+            _logger.warning("Google Hindi translation is unavailable; switching to the bundled offline model.")
+        raise TranslationError("Google Hindi translation is unavailable.") from error
+    if not isinstance(translated, str) or not translated.strip():
+        _google_unavailable.set()
+        raise TranslationError("Google Hindi translation returned an empty result.")
+    return translated
+
+
+def _translate_offline(text):
     sentences = re.split(r"(?<=[.!?])(?=\s)|(?<=\n)", text)
     translated_sentences = []
     for sentence in sentences:
@@ -162,3 +196,18 @@ def translate_to_hindi(text):
         pieces.append(_translate_piece(sentence[previous_end:]))
         translated_sentences.append("".join(pieces))
     return "".join(translated_sentences).strip()
+
+
+def translate_to_hindi(text):
+    if not isinstance(text, str):
+        raise TypeError("Text to translate must be a string.")
+    if not text.strip():
+        return text
+
+    # Match the earlier website translation path, protecting invoice numbers.
+    protected_text = re.sub(r"\d+", lambda match: f"__NUM_{match.group(0)}__", text)
+    try:
+        translated = _translate_with_google(protected_text)
+        return re.sub(r"__NUM_(\d+)__", r"\1", translated, flags=re.IGNORECASE)
+    except TranslationError:
+        return _translate_offline(text)
