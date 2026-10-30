@@ -266,7 +266,7 @@ export default function BharatDocsApp() {
 
             <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 sm:justify-start">
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Online translation sends selected text to Google · offline translation stays local.
+              Names and addresses are converted locally without external translation services.
             </div>
           </div>
 

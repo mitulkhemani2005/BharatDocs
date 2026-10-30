@@ -10,9 +10,9 @@ BharatDocs translates text from configured regions in PDF bills into Hindi, writ
 - Preserve detected numeric values and identifiers during translation.
 - Preview and download the translated PDF.
 - Keep each upload in a separate, short-lived session.
-- Translate with Google Translate when it is available; use the bundled OPUS-MT model as an offline fallback.
+- Convert names phonetically into Hindi with the bundled IndicXlit model and translate common shop/address terms with a local dictionary.
 - Keep using the Windows desktop app without an internet connection.
-- Online translation sends only the extracted text from configured regions to Google. Offline translation stays on the computer.
+- No Google calls, external translation service, API key, or runtime model download is required.
 
 ## Requirements
 
@@ -29,6 +29,7 @@ frontend/             Next.js website and desktop frontend
 desktop/               Electron desktop shell
 scripts/               Model preparation and Windows packaging
 config.json            Active PDF regions and typography
+hindi_terms.json       Local Hindi spellings and address/shop vocabulary
 config_examples/       Optional layout examples
 ```
 
@@ -36,23 +37,14 @@ The website and Windows app have separate frontend builds. The desktop app opens
 
 ## Run the website locally
 
-Use Python 3.10 or newer and Node.js 20 or newer. If the offline model is not already present, prepare it once in a separate environment. This keeps the model-building packages, including PyTorch, out of the API runtime:
+Use Python 3.10 or newer and Node.js 20 or newer. Create the backend environment and download the verified model once while online:
 
 ```powershell
 cd D:\NDA_Converter
-python -m venv .model-venv
-.model-venv\Scripts\Activate.ps1
-python -m pip install -r model-build-requirements.txt
-python scripts/prepare_offline_model.py
-deactivate
-```
-
-In the project root, create a clean environment for the FastAPI backend:
-
-```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python scripts/prepare_offline_model.py
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 
@@ -88,6 +80,8 @@ An individual region may include `text_offset_y` to shift its Hindi line vertica
 
 The PDF uses the bundled Noto Sans Devanagari Regular font at normal weight for clear, non-bold Hindi. The font is distributed under the SIL Open Font License; its license is included beside the font file. Keep the font and license when deploying.
 
+Names and addresses use phonetic Hindi spellings rather than sentence translation. `hindi_terms.json` supplies known spellings and common terms (for example `ASHOK KI.& GEN ST.` becomes `अशोक किराना एवं जनरल स्टोर`). Unlisted names use the local neural model. Personal and place names can have multiple valid spellings: add an exact spelling to this dictionary and restart the backend when needed. House numbers, postcodes and mixed identifiers such as `31B` stay unchanged. This converter is intended for configured name/address fields, not general prose.
+
 ## API
 
 The FastAPI service exposes an OpenAPI schema at `/openapi.json` and interactive API documentation at `/docs`.
@@ -111,7 +105,7 @@ Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload ses
 - `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
 - `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
 
-The deployment `Procfile` starts FastAPI with Uvicorn. The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. When Google Translate cannot be reached, the API uses this model locally. The alternate bill layout is preserved as `config_examples/second-bill.json`; `config.json` is the active layout.
+The deployment `Procfile` starts FastAPI with Uvicorn. Model preparation downloads a pinned CTranslate2 conversion of AI4Bharat IndicXlit and verifies SHA-256 checksums. Inference uses CPU only and never downloads anything. The alternate bill layout is preserved as `config_examples/second-bill.json`; `config.json` is the active layout.
 
 ## Build the offline Windows installer
 
@@ -121,6 +115,6 @@ Build on a Windows x64 computer while online. The first build downloads the tran
 powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
 ```
 
-The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.0.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild without downloading or reconverting the model, use `-SkipModelPreparation` after the `models\opus-mt-en-hi` folder has already been prepared.
+The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.1.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
 
 The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.

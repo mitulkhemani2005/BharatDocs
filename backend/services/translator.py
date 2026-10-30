@@ -1,188 +1,73 @@
-import logging
+"""Local Hindi spelling for invoice names and addresses; never contacts a service."""
+
+import json
 import re
-import os
 import threading
 from functools import lru_cache
 
 from backend.core.paths import resource_root
-from googletrans import Translator
 
 
 class TranslationError(Exception):
-    """Raised when neither the online nor bundled Hindi translator can return text."""
+    """Raised when a field cannot be converted safely to Hindi."""
 
 
-MODEL_DIRECTORY = resource_root() / "models" / "opus-mt-en-hi"
-_translator_lock = threading.Lock()
-_logger = logging.getLogger(__name__)
-_google_unavailable = threading.Event()
-_google_translator = Translator()
-_code_pattern = re.compile(r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\b", re.IGNORECASE)
-_number_pattern = re.compile(r"(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)")
-_common_terms = {
-    "amount": "राशि",
-    "bank detail": "बैंक विवरण",
-    "bill date": "बिल की तारीख",
-    "bill no": "बिल नंबर",
-    "gstin no": "जीएसटीआईएन नंबर",
-    "labor": "मज़दूर",
-    "labour": "मज़दूर",
-    "labor wages": "मजदूरी",
-    "labour wages": "मजदूरी",
-    "net amount": "कुल राशि",
-    "place of supply": "आपूर्ति का स्थान",
-    "tax invoice": "कर बिल",
-    "thank you": "धन्यवाद",
-    "total amount": "कुल राशि",
-    "wages": "मजदूरी",
-    "worker": "मज़दूर",
-    "workers": "मज़दूर",
-}
-_common_term_pattern = re.compile(
-    r"^(?P<term>place\s+of\s+supply|total\s+amount|labor\s+wages|labour\s+wages|"
-    r"thank\s+you|bank\s+detail|bill\s+date|bill\s+no|gstin\s+no|net\s+amount|tax\s+invoice|"
-    r"amount|workers?|labor|labour|wages)"
-    r"(?P<punctuation>[.!?,:]*)$",
-    re.IGNORECASE,
-)
-_amount_line_pattern = re.compile(
-    r"^(?P<label>total\s+amount|amount)(?P<separator>\s*[:\-]?\s*)"
-    r"(?P<value>\d+(?:[.,/:_-]\d+)*)(?P<punctuation>[.!?]?)$",
-    re.IGNORECASE,
-)
+MODEL_DIRECTORY = resource_root() / "models" / "indicxlit-en-hi"
+_lock = threading.Lock()
+_tokens = re.compile(r"[A-Za-z0-9]+(?:['’][A-Za-z]+)?")
+_initials = dict(zip("abcdefghijklmnopqrstuvwxyz", [
+    "ए", "बी", "सी", "डी", "ई", "एफ", "जी", "एच", "आई", "जे", "के", "एल", "एम",
+    "एन", "ओ", "पी", "क्यू", "आर", "एस", "टी", "यू", "वी", "डब्ल्यू", "एक्स", "वाई", "ज़ेड",
+]))
 
 
 @lru_cache(maxsize=1)
-def _load_offline_translator():
-    translation_dir = MODEL_DIRECTORY / "translation"
-    tokenizer_dir = MODEL_DIRECTORY / "tokenizer"
-    if (
-        not (translation_dir / "model.bin").is_file()
-        or not (tokenizer_dir / "source.spm").is_file()
-        or not (tokenizer_dir / "target.spm").is_file()
-    ):
-        raise TranslationError(
-            "The offline Hindi model is missing. Reinstall BharatDocs or rebuild the app with its language model."
+def _glossary():
+    try:
+        data = json.loads((resource_root() / "hindi_terms.json").read_text(encoding="utf-8"))
+        terms = {key.casefold(): value for key, value in data.items()}
+        if not terms or any(not key or not isinstance(value, str) or not value.strip() for key, value in terms.items()):
+            raise ValueError("Invalid Hindi spelling dictionary")
+        pattern = re.compile(
+            r"(?<![A-Za-z0-9])(?:" + "|".join(re.escape(key) for key in sorted(terms, key=len, reverse=True)) + r")(?![A-Za-z0-9])",
+            re.IGNORECASE,
         )
+        return terms, pattern
+    except (OSError, ValueError, TypeError, AttributeError) as error:
+        raise TranslationError("The local Hindi spelling dictionary could not be loaded.") from error
 
+
+@lru_cache(maxsize=1)
+def _engine():
+    if not (MODEL_DIRECTORY / "model.bin").is_file():
+        raise TranslationError("The offline Hindi spelling model is missing. Reinstall BharatDocs or run scripts/prepare_offline_model.py.")
     try:
         import ctranslate2
-        import sentencepiece as spm
 
-        source_tokenizer = spm.SentencePieceProcessor(
-            model_file=str(tokenizer_dir / "source.spm"),
-        )
-        target_tokenizer = spm.SentencePieceProcessor(
-            model_file=str(tokenizer_dir / "target.spm"),
-        )
-        translator = ctranslate2.Translator(
-            str(translation_dir),
-            device="cpu",
-            compute_type="int8",
-            inter_threads=1,
-            intra_threads=max(1, min(4, os.cpu_count() or 1)),
-        )
-        return source_tokenizer, target_tokenizer, translator
+        return ctranslate2.Translator(str(MODEL_DIRECTORY), device="cpu", compute_type="int8", inter_threads=1, intra_threads=2)
     except Exception as error:
-        raise TranslationError("The bundled offline Hindi model could not be loaded on this computer.") from error
+        raise TranslationError("The offline Hindi spelling model could not be loaded.") from error
 
 
-@lru_cache(maxsize=2048)
-def _translate_text(text):
+@lru_cache(maxsize=8192)
+def _hindi_word(word):
+    if len(word) == 1:
+        return _initials[word.casefold()]
+    if len(word) > 80:
+        raise TranslationError("A name or address contains an unusually long word. Check its spelling.")
     try:
-        source_tokenizer, target_tokenizer, translator = _load_offline_translator()
-        source_tokens = source_tokenizer.encode(text, out_type=str)
-        if not source_tokens or source_tokens[-1] != "</s>":
-            source_tokens.append("</s>")
-        with _translator_lock:
-            result = translator.translate_batch(
-                [source_tokens],
-                beam_size=3,
-                max_decoding_length=256,
+        with _lock:
+            result = _engine().translate_batch(
+                [["__hi__"] + list(word.casefold())], beam_size=5, max_decoding_length=160,
             )[0]
-        translated = target_tokenizer.decode_pieces(result.hypotheses[0]).strip()
+        output = "".join(result.hypotheses[0]).strip()
+        if not output or re.search(r"[A-Za-z<>\ufffd]", output) or not re.search(r"[\u0900-\u097f]", output):
+            raise ValueError("Invalid Hindi model output")
+        return output
     except TranslationError:
         raise
     except Exception as error:
-        raise TranslationError("Offline English-to-Hindi translation failed. Please try this PDF again.") from error
-
-    if not translated:
-        raise TranslationError("The offline translator returned an empty Hindi result.")
-    return translated
-
-
-def _translate_piece(piece):
-    leading_whitespace = piece[: len(piece) - len(piece.lstrip())]
-    trailing_whitespace = piece[len(piece.rstrip()) :]
-    content = piece.strip()
-    if not content:
-        return piece
-
-    amount_match = _amount_line_pattern.fullmatch(content)
-    if amount_match:
-        label = "कुल राशि" if amount_match.group("label").casefold().startswith("total") else "राशि"
-        separator = ": " if ":" in amount_match.group("separator") else " "
-        translated = f"{label}{separator}{amount_match.group('value')}{amount_match.group('punctuation')}"
-        return leading_whitespace + translated + trailing_whitespace
-
-    term_match = _common_term_pattern.fullmatch(content)
-    if term_match:
-        translated = _common_terms[term_match.group("term").casefold()]
-        translated += term_match.group("punctuation")
-        return leading_whitespace + translated + trailing_whitespace
-
-    numbers = list(_number_pattern.finditer(content))
-    letters = [character for character in content if character.isalpha()]
-    model_input = content.lower() if letters and all(character.isupper() for character in letters) else content
-    translated = _translate_text(model_input)
-    translated_numbers = list(_number_pattern.finditer(translated))
-    if numbers and len(numbers) == len(translated_numbers):
-        for source_number, target_number in reversed(list(zip(numbers, translated_numbers))):
-            translated = (
-                translated[: target_number.start()]
-                + source_number.group(0)
-                + translated[target_number.end() :]
-            )
-    elif numbers:
-        parts = []
-        previous_end = 0
-        for number in numbers:
-            parts.append(_translate_text(content[previous_end : number.start()].strip()))
-            parts.append(number.group(0))
-            previous_end = number.end()
-        parts.append(_translate_text(content[previous_end:].strip()))
-        translated = " ".join(part for part in parts if part)
-    return leading_whitespace + translated + trailing_whitespace
-
-
-@lru_cache(maxsize=2048)
-def _translate_with_google(text):
-    try:
-        translated = _google_translator.translate(text, src="en", dest="hi").text
-    except Exception as error:
-        if not _google_unavailable.is_set():
-            _google_unavailable.set()
-            _logger.warning("Google Hindi translation is unavailable; switching to the bundled offline model.")
-        raise TranslationError("Google Hindi translation is unavailable.") from error
-    if not isinstance(translated, str) or not translated.strip():
-        _google_unavailable.set()
-        raise TranslationError("Google Hindi translation returned an empty result.")
-    return translated
-
-
-def _translate_offline(text):
-    sentences = re.split(r"(?<=[.!?])(?=\s)|(?<=\n)", text)
-    translated_sentences = []
-    for sentence in sentences:
-        pieces = []
-        previous_end = 0
-        for match in _code_pattern.finditer(sentence):
-            pieces.append(_translate_piece(sentence[previous_end : match.start()]))
-            pieces.append(match.group(0))
-            previous_end = match.end()
-        pieces.append(_translate_piece(sentence[previous_end:]))
-        translated_sentences.append("".join(pieces))
-    return "".join(translated_sentences).strip()
+        raise TranslationError(f"Could not spell '{word}' in Hindi. Add its correct spelling to hindi_terms.json.") from error
 
 
 def translate_to_hindi(text):
@@ -190,11 +75,13 @@ def translate_to_hindi(text):
         raise TypeError("Text to translate must be a string.")
     if not text.strip():
         return text
+    terms, pattern = _glossary()
+    converted = pattern.sub(lambda match: terms[match.group(0).casefold()], text)
 
-    # Match the earlier website translation path, protecting invoice numbers.
-    protected_text = re.sub(r"\d+", lambda match: f"__NUM_{match.group(0)}__", text)
-    try:
-        translated = _translate_with_google(protected_text)
-        return re.sub(r"__NUM_(\d+)__", r"\1", translated, flags=re.IGNORECASE)
-    except TranslationError:
-        return _translate_offline(text)
+    # House numbers, postcodes and mixed identifiers (e.g. 31B) stay exact.
+    def convert(match):
+        word = match.group(0)
+        return word if any(char.isdigit() for char in word) else _hindi_word(word)
+
+    converted = re.sub(r"\s*&\s*", " एवं ", _tokens.sub(convert, converted))
+    return re.sub(r"[ \t]+", " ", converted).strip()

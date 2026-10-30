@@ -1,6 +1,6 @@
 {
   "name": "bharatdocs-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Offline English-to-Hindi PDF translator for Windows",
   "author": "BharatDocs",
   "private": true,
@@ -25,7 +25,8 @@
     "extraResources": [
       { "from": "../.build/backend/desktop_backend", "to": "backend" },
       { "from": "../frontend/.next-desktop", "to": "frontend/out" },
-      { "from": "../models/opus-mt-en-hi", "to": "models/opus-mt-en-hi" },
+      { "from": "../models/indicxlit-en-hi", "to": "models/indicxlit-en-hi" },
+      { "from": "../hindi_terms.json", "to": "hindi_terms.json" },
       { "from": "../fonts", "to": "fonts" },
       { "from": "../config.json", "to": "config.json" },
       { "from": "../THIRD_PARTY_NOTICES.txt", "to": "THIRD_PARTY_NOTICES.txt" }
