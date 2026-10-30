@@ -73,17 +73,12 @@ $PyInstallerArgs = @(
     "--collect-all", "uvicorn",
     "--collect-all", "multipart",
     "--collect-all", "ctranslate2",
-    "--collect-all", "transformers",
-    "--collect-all", "tokenizers",
     "--collect-all", "sentencepiece",
     "--copy-metadata", "ctranslate2",
     "--copy-metadata", "fastapi",
     "--copy-metadata", "starlette",
     "--copy-metadata", "uvicorn",
     "--copy-metadata", "googletrans",
-    "--copy-metadata", "transformers",
-    "--copy-metadata", "huggingface-hub",
-    "--copy-metadata", "tokenizers",
     "--copy-metadata", "sentencepiece",
     (Join-Path $ProjectRoot "backend\main.py")
 )

@@ -36,15 +36,23 @@ The website and Windows app have separate frontend builds. The desktop app opens
 
 ## Run the website locally
 
-Use Python 3.10 or newer and Node.js 20 or newer. In the project root, prepare the backend and its offline fallback model once:
+Use Python 3.10 or newer and Node.js 20 or newer. If the offline model is not already present, prepare it once in a separate environment. This keeps the model-building packages, including PyTorch, out of the API runtime:
 
 ```powershell
 cd D:\NDA_Converter
+python -m venv .model-venv
+.model-venv\Scripts\Activate.ps1
+python -m pip install -r model-build-requirements.txt
+python scripts/prepare_offline_model.py
+deactivate
+```
+
+In the project root, create a clean environment for the FastAPI backend:
+
+```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m pip install -r model-build-requirements.txt
-python scripts/prepare_offline_model.py
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 

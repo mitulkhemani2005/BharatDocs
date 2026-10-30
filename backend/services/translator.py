@@ -62,11 +62,10 @@ def _load_offline_translator():
 
     try:
         import ctranslate2
-        from transformers import MarianTokenizer
+        import sentencepiece as spm
 
-        tokenizer = MarianTokenizer.from_pretrained(
-            str(tokenizer_dir),
-            local_files_only=True,
+        tokenizer = spm.SentencePieceProcessor(
+            model_file=str(tokenizer_dir / "source.spm"),
         )
         translator = ctranslate2.Translator(
             str(translation_dir),
@@ -84,16 +83,16 @@ def _load_offline_translator():
 def _translate_text(text):
     try:
         tokenizer, translator = _load_offline_translator()
-        source_ids = tokenizer.encode(text, add_special_tokens=True)
-        source_tokens = tokenizer.convert_ids_to_tokens(source_ids)
+        source_tokens = tokenizer.encode(text, out_type=str)
+        if not source_tokens or source_tokens[-1] != "</s>":
+            source_tokens.append("</s>")
         with _translator_lock:
             result = translator.translate_batch(
                 [source_tokens],
                 beam_size=3,
                 max_decoding_length=256,
             )[0]
-        target_ids = tokenizer.convert_tokens_to_ids(result.hypotheses[0])
-        translated = tokenizer.decode(target_ids, skip_special_tokens=True).strip()
+        translated = tokenizer.decode_pieces(result.hypotheses[0]).strip()
     except TranslationError:
         raise
     except Exception as error:

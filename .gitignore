@@ -1,6 +1,7 @@
 frontend/node_modules
 uploads/
 .venv/
+.model-venv/
 .env
 .env.*
 !.env.example
