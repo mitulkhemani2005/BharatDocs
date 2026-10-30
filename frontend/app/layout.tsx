@@ -1,16 +1,11 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
-
 export const metadata: Metadata = {
-  title: "NDA Docs - PDF English to Hindi Converter",
-  description: "Upload and download PDF documents easily. Made by Mitul Khemani for New Durga Agencies, Ujjain.",
-  generator: "v0.app",
+  title: "BharatDocs - English to Hindi PDF Translator",
+  description: "Translate English PDF bills into readable Hindi and preview or download the translated copy.",
   // icons: {
   //   icon: [
   //     {
@@ -36,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
       <body className={`font-sans antialiased`}>
         {children}
         <Analytics />

@@ -1,4 +1,9 @@
 {
+  "pdf_text": {
+    "font_size": 14,
+    "vertical_padding": 2,
+    "minimum_scale": 0.8
+  },
   "all_pages": [
     {
       "name": "rectangle1",
@@ -14,7 +19,8 @@
     },
     {
       "name": "rectangle4",
-      "rect": [33, 497, 296, 504]
+      "rect": [33, 497, 296, 506],
+      "text_offset_y": 2
     }
   ]
 }

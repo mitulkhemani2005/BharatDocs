@@ -1,130 +1,137 @@
-import fitz  # PyMuPDF
-import os
+import html
+from pathlib import Path
 
-# ================= FONT CONFIG =================
-FONT_NAME = "NotoSansDevanagari"
-FONT_PATH = "fonts/NotoSansDevanagari-Regular.ttf"
-
-if not os.path.exists(FONT_PATH):
-    raise FileNotFoundError(f"Hindi font not found at {FONT_PATH}")
+import fitz
 
 
-# ================= BBOX UTILS =================
-def pad_bbox(bbox, padding_top=2, padding_bottom=14):
+BASE_DIR = Path(__file__).resolve().parent
+FONT_DIRECTORY = BASE_DIR / "fonts"
+FONT_FILENAME = "NotoSansDevanagari-Regular.ttf"
+FONT_PATH = FONT_DIRECTORY / FONT_FILENAME
+DEFAULT_TEXT_OPTIONS = {
+    "font_size": 14,
+    "vertical_padding": 2,
+    "minimum_scale": 0.8,
+}
+
+
+class PdfProcessingError(Exception):
+    """Raised when translated text cannot be safely rendered into the PDF."""
+
+
+def _render_options(options):
+    options = {**DEFAULT_TEXT_OPTIONS, **(options or {})}
+    try:
+        font_size = float(options["font_size"])
+        vertical_padding = float(options["vertical_padding"])
+        minimum_scale = float(options["minimum_scale"])
+    except (TypeError, ValueError) as error:
+        raise PdfProcessingError("Hindi PDF text settings must be numeric.") from error
+
+    if not 8 <= font_size <= 18:
+        raise PdfProcessingError("Hindi PDF font size must be between 8 and 18 points.")
+    if not 0 <= vertical_padding <= 3:
+        raise PdfProcessingError("Hindi PDF vertical padding must be between 0 and 3 points.")
+    if not 0.5 <= minimum_scale <= 1:
+        raise PdfProcessingError("Hindi PDF minimum scale must be between 0.5 and 1.")
+    return font_size, vertical_padding, minimum_scale
+
+
+def _font_css(font_size):
+    return f"""
+        @font-face {{
+            font-family: 'NotoHindi';
+            src: url('{FONT_FILENAME}');
+        }}
+        html, body, p {{
+            font-family: 'NotoHindi';
+            font-size: {font_size}pt;
+            color: #111111;
+            margin: 0;
+            padding: 0;
+        }}
+        p {{
+            text-align: center;
+            font-weight: bold;
+            line-height: 1;
+            white-space: nowrap;
+        }}
     """
-    Padding ONLY for Hindi text height.
-    Overlay rectangle must NEVER use padded bbox.
-    """
+
+
+def _expanded_text_rect(page, bbox, vertical_padding, vertical_offset=0):
     x0, y0, x1, y1 = bbox
-    return (x0, y0 - padding_top, x1, y1 + padding_bottom)
-
-
-# ================= TEXT INSERT =================
-def insert_centered_text(page, bbox, text):
-    """
-    Inserts Hindi text exactly once, centered horizontally and vertically.
-    Uses Shape for dry-run measurement to avoid duplicate rendering.
-    """
-
-    x0, y0, x1, y1 = bbox
-
-    fitted_font_size = None
-    unused_space = None
-
-    # -------- Pass 1: Measure using Shape (NO DRAW) --------
-    for font_size in range(10, 5, -1):
-        shape = page.new_shape()
-        rc = shape.insert_textbox(
-            bbox,
-            text,
-            fontsize=font_size,
-            fontname=FONT_NAME,
-            fontfile=FONT_PATH,
-            align=fitz.TEXT_ALIGN_CENTER
-        )
-        # DO NOT COMMIT SHAPE
-        if rc >= 0:
-            fitted_font_size = font_size
-            unused_space = rc
-            break
-
-    if fitted_font_size is None:
-        return False
-
-    # -------- Vertical centering --------
-    vertical_shift = unused_space / 2
-
-    centered_bbox = (
+    return fitz.Rect(
         x0,
-        y0 + vertical_shift,
+        max(page.rect.y0, y0 - vertical_padding + vertical_offset),
         x1,
-        y1
+        min(page.rect.y1, y1 + vertical_padding + vertical_offset),
     )
 
-    # -------- Pass 2: Final render (ONLY ONCE) --------
-    page.insert_textbox(
-        centered_bbox,
-        text,
-        fontsize=fitted_font_size,
-        fontname=FONT_NAME,
-        fontfile=FONT_PATH,
-        color=(0, 0, 0),
-        align=fitz.TEXT_ALIGN_CENTER
-    )
 
-    return True
-
-
-# ================= MAIN MODIFIER =================
 def apply_translations_to_pdf(
     input_pdf_path,
     output_pdf_path,
-    translated_regions
+    translated_regions,
+    text_options=None,
 ):
-    """
-    FINAL RULES:
-    - Overlay rectangle uses EXACT config.json coordinates
-    - Hindi text is rendered ONCE and centered correctly
-    """
+    if not FONT_PATH.is_file():
+        raise PdfProcessingError("The Noto Sans Devanagari font file is missing.")
 
-    doc = fitz.open(input_pdf_path)
+    font_size, vertical_padding, minimum_scale = _render_options(text_options)
+    output_path = Path(output_pdf_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    archive = fitz.Archive(str(FONT_DIRECTORY))
+    css = _font_css(font_size)
 
-    for page in doc:
-        page_index = page.number
+    try:
+        with fitz.open(input_pdf_path) as doc:
+            if doc.needs_pass or doc.is_encrypted:
+                raise PdfProcessingError("Password-protected PDFs cannot be translated.")
 
-        for region in translated_regions:
-            if region["page"] != page_index:
-                continue
+            page_regions = {}
+            for region in translated_regions:
+                page_index = region.get("page")
+                if not isinstance(page_index, int) or not 0 <= page_index < doc.page_count:
+                    continue
+                hindi_text = region.get("hindi_text", "").strip()
+                if not hindi_text:
+                    continue
+                bbox = fitz.Rect(region["rect"]) & doc[page_index].rect
+                if bbox.is_empty or bbox.is_infinite:
+                    continue
+                page_regions.setdefault(page_index, []).append((
+                    bbox,
+                    hindi_text,
+                    region.get("region_name", ""),
+                    float(region.get("text_offset_y", 0)),
+                ))
 
-            hindi_text = region.get("hindi_text", "").strip()
-            if not hindi_text:
-                continue
+            for page_index, regions in page_regions.items():
+                page = doc[page_index]
 
-            # 1️⃣ Exact rectangle from config.json
-            original_bbox = tuple(region["rect"])
+                # Clear every target first so text from a neighboring region is never erased later.
+                for bbox, _text, _name, _offset in regions:
+                    page.draw_rect(bbox, fill=(1, 1, 1), color=None, overlay=True)
 
-            # 2️⃣ Padded bbox ONLY for Hindi text
-            text_bbox = pad_bbox(original_bbox)
+                for bbox, text, region_name, vertical_offset in regions:
+                    text_rect = _expanded_text_rect(page, bbox, vertical_padding, vertical_offset)
+                    markup = f'<p lang="hi">{html.escape(text, quote=False)}</p>'
+                    spare_height, scale = page.insert_htmlbox(
+                        text_rect,
+                        markup,
+                        css=css,
+                        archive=archive,
+                        scale_low=minimum_scale,
+                        overlay=True,
+                    )
+                    if spare_height < 0 or scale < minimum_scale:
+                        raise PdfProcessingError(
+                            f"Hindi text does not fit in region '{region_name}' on page {page_index + 1}."
+                        )
 
-            # 3️⃣ Erase English text (NO BORDER)
-            page.draw_rect(
-                original_bbox,
-                fill=(1, 1, 1),
-                color=None,
-                overlay=True
-            )
-
-            # 4️⃣ Insert Hindi text ONCE
-            success = insert_centered_text(
-                page=page,
-                bbox=text_bbox,
-                text=hindi_text
-            )
-
-            if not success:
-                print(
-                    f"[WARN] Hindi text did not fit "
-                    f"(page={page_index}, region={region.get('region_name')})"
-                )
-
-    doc.save(output_pdf_path)
+            doc.save(output_path, garbage=4, deflate=True)
+    except PdfProcessingError:
+        raise
+    except (fitz.FileDataError, fitz.EmptyFileError, OSError, RuntimeError, ValueError) as error:
+        raise PdfProcessingError("The PDF could not be updated with Hindi text.") from error

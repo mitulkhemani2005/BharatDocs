@@ -1,44 +1,44 @@
-import fitz  # PyMuPDF
+import fitz
+
+from pdf_reader import PdfValidationError
+
 
 def extract_text_from_regions(pdf_path, regions):
-    doc = fitz.open(pdf_path)
     results = []
 
-    for page_index, page in enumerate(doc):
-        page_dict = page.get_text("dict")
+    try:
+        with fitz.open(pdf_path) as doc:
+            if doc.needs_pass or doc.is_encrypted:
+                raise PdfValidationError("This PDF is password protected. Remove the password and upload it again.")
 
-        for region in regions:
-            x_min, y_min, x_max, y_max = region["rect"]
-            collected = []
+            for page_index, page in enumerate(doc):
+                for region in regions:
+                    area = fitz.Rect(region["rect"]) & page.rect
+                    collected = []
+                    if not area.is_empty:
+                        page_dict = page.get_text("dict", clip=area, sort=True)
+                        spans = []
+                        for block in page_dict["blocks"]:
+                            if block.get("type") != 0:
+                                continue
+                            for line in block.get("lines", []):
+                                for span in line.get("spans", []):
+                                    text = span.get("text", "").strip()
+                                    if text:
+                                        spans.append((span["bbox"][1], span["bbox"][0], text))
+                        spans.sort(key=lambda item: (item[0], item[1]))
+                        collected = [text for _, _, text in spans]
 
-            for block in page_dict["blocks"]:
-                if block["type"] != 0:
-                    continue  # not text
-
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        x0, y0, x1, y1 = span["bbox"]
-                        text = span["text"].strip()
-
-                        if not text:
-                            continue
-
-                        # intersection check
-                        intersects = not (
-                            x1 < x_min or
-                            x0 > x_max or
-                            y1 < y_min or
-                            y0 > y_max
-                        )
-
-                        if intersects:
-                            collected.append(text)
-
-            results.append({
-                "page": page_index,
-                "region_name": region["name"],
-                "rect": region["rect"],
-                "text": " ".join(collected)
-            })
+                    results.append({
+                        "page": page_index,
+                        "region_name": region["name"],
+                        "rect": region["rect"],
+                        "text_offset_y": region.get("text_offset_y", 0),
+                        "text": " ".join(collected),
+                    })
+    except PdfValidationError:
+        raise
+    except (fitz.FileDataError, fitz.EmptyFileError, OSError, RuntimeError) as error:
+        raise PdfValidationError("This PDF could not be read. Make sure it is a valid, unprotected PDF.") from error
 
     return results

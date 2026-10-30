@@ -1,5 +1,5 @@
-flask
-flask-cors
-pymupdf
+Flask>=3.0,<4
+flask-cors>=4.0,<6
+PyMuPDF>=1.23,<2
 googletrans==4.0.0-rc1
-gunicorn
+gunicorn>=21,<24
