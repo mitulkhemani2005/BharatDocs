@@ -15,7 +15,7 @@ DEFAULT_TEXT_OPTIONS = {
     "font_family": "Mukta",
     "font_size": 14,
     "vertical_padding": 2,
-    "minimum_scale": 0.8,
+    "minimum_scale": 0.7,
 }
 
 

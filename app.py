@@ -280,8 +280,8 @@ def translate_pdf():
     except TranslationError as error:
         raise ApiError(str(error), 502) from error
     except PdfProcessingError as error:
-        app.logger.exception("Could not create the translated PDF")
-        raise ApiError("The Hindi text could not be placed in this PDF. Check the PDF regions and try again.", 422) from error
+        app.logger.warning("Could not create the translated PDF: %s", error)
+        raise ApiError(str(error), 422) from error
     except Exception as error:
         app.logger.exception("Unexpected PDF conversion failure")
         raise ApiError("The PDF could not be translated. Please try again.", 500) from error

@@ -16,10 +16,17 @@ _code_pattern = re.compile(r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\
 _number_pattern = re.compile(r"(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)")
 _common_terms = {
     "amount": "राशि",
+    "bank detail": "बैंक विवरण",
+    "bill date": "बिल की तारीख",
+    "bill no": "बिल नंबर",
+    "gstin no": "जीएसटीआईएन नंबर",
     "labor": "मज़दूर",
     "labour": "मज़दूर",
     "labor wages": "मजदूरी",
     "labour wages": "मजदूरी",
+    "net amount": "कुल राशि",
+    "place of supply": "आपूर्ति का स्थान",
+    "tax invoice": "कर बिल",
     "thank you": "धन्यवाद",
     "total amount": "कुल राशि",
     "wages": "मजदूरी",
@@ -27,7 +34,9 @@ _common_terms = {
     "workers": "मज़दूर",
 }
 _common_term_pattern = re.compile(
-    r"^(?P<term>total\s+amount|labor\s+wages|labour\s+wages|thank\s+you|amount|workers?|labor|labour|wages)"
+    r"^(?P<term>place\s+of\s+supply|total\s+amount|labor\s+wages|labour\s+wages|"
+    r"thank\s+you|bank\s+detail|bill\s+date|bill\s+no|gstin\s+no|net\s+amount|tax\s+invoice|"
+    r"amount|workers?|labor|labour|wages)"
     r"(?P<punctuation>[.!?,:]*)$",
     re.IGNORECASE,
 )
@@ -36,6 +45,12 @@ _amount_line_pattern = re.compile(
     r"(?P<value>\d+(?:[.,/:_-]\d+)*)(?P<punctuation>[.!?]?)$",
     re.IGNORECASE,
 )
+
+
+def _looks_like_uppercase_name(text):
+    letters = [character for character in text if character.isalpha()]
+    words = re.findall(r"[A-Za-z]{2,}", text)
+    return len(letters) > 0 and len(words) >= 2 and all(character.isupper() for character in letters)
 
 
 @lru_cache(maxsize=1)
@@ -110,6 +125,9 @@ def _translate_piece(piece):
         translated = _common_terms[term_match.group("term").casefold()]
         translated += term_match.group("punctuation")
         return leading_whitespace + translated + trailing_whitespace
+
+    if _looks_like_uppercase_name(content):
+        return leading_whitespace + content + trailing_whitespace
 
     numbers = list(_number_pattern.finditer(content))
     translated = _translate_text(content)
