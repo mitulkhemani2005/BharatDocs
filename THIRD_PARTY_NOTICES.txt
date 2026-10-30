@@ -7,6 +7,5 @@ English-to-Hindi translation model
   The Apache License 2.0 text is included as LICENSE-OPUS-MT.txt with the model.
 
 Hindi typefaces
-  Mukta is licensed under the SIL Open Font License 1.1; see fonts/Mukta-OFL.txt.
   Noto Sans Devanagari is licensed under the SIL Open Font License 1.1; see
   fonts/Noto-OFL.txt.

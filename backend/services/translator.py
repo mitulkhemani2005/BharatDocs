@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 import os
@@ -6,6 +5,7 @@ import threading
 from functools import lru_cache
 
 from backend.core.paths import resource_root
+from googletrans import Translator
 
 
 class TranslationError(Exception):
@@ -16,6 +16,7 @@ MODEL_DIRECTORY = resource_root() / "models" / "opus-mt-en-hi"
 _translator_lock = threading.Lock()
 _logger = logging.getLogger(__name__)
 _google_unavailable = threading.Event()
+_google_translator = Translator()
 _code_pattern = re.compile(r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\b", re.IGNORECASE)
 _number_pattern = re.compile(r"(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)")
 _common_terms = {
@@ -55,7 +56,11 @@ _amount_line_pattern = re.compile(
 def _load_offline_translator():
     translation_dir = MODEL_DIRECTORY / "translation"
     tokenizer_dir = MODEL_DIRECTORY / "tokenizer"
-    if not (translation_dir / "model.bin").is_file() or not (tokenizer_dir / "source.spm").is_file():
+    if (
+        not (translation_dir / "model.bin").is_file()
+        or not (tokenizer_dir / "source.spm").is_file()
+        or not (tokenizer_dir / "target.spm").is_file()
+    ):
         raise TranslationError(
             "The offline Hindi model is missing. Reinstall BharatDocs or rebuild the app with its language model."
         )
@@ -64,8 +69,11 @@ def _load_offline_translator():
         import ctranslate2
         import sentencepiece as spm
 
-        tokenizer = spm.SentencePieceProcessor(
+        source_tokenizer = spm.SentencePieceProcessor(
             model_file=str(tokenizer_dir / "source.spm"),
+        )
+        target_tokenizer = spm.SentencePieceProcessor(
+            model_file=str(tokenizer_dir / "target.spm"),
         )
         translator = ctranslate2.Translator(
             str(translation_dir),
@@ -74,7 +82,7 @@ def _load_offline_translator():
             inter_threads=1,
             intra_threads=max(1, min(4, os.cpu_count() or 1)),
         )
-        return tokenizer, translator
+        return source_tokenizer, target_tokenizer, translator
     except Exception as error:
         raise TranslationError("The bundled offline Hindi model could not be loaded on this computer.") from error
 
@@ -82,8 +90,8 @@ def _load_offline_translator():
 @lru_cache(maxsize=2048)
 def _translate_text(text):
     try:
-        tokenizer, translator = _load_offline_translator()
-        source_tokens = tokenizer.encode(text, out_type=str)
+        source_tokenizer, target_tokenizer, translator = _load_offline_translator()
+        source_tokens = source_tokenizer.encode(text, out_type=str)
         if not source_tokens or source_tokens[-1] != "</s>":
             source_tokens.append("</s>")
         with _translator_lock:
@@ -92,7 +100,7 @@ def _translate_text(text):
                 beam_size=3,
                 max_decoding_length=256,
             )[0]
-        translated = tokenizer.decode_pieces(result.hypotheses[0]).strip()
+        translated = target_tokenizer.decode_pieces(result.hypotheses[0]).strip()
     except TranslationError:
         raise
     except Exception as error:
@@ -147,30 +155,10 @@ def _translate_piece(piece):
     return leading_whitespace + translated + trailing_whitespace
 
 
-async def _google_translate_async(text):
-    from googletrans import Translator
-
-    last_error = None
-    for service_url in ("translate.google.com", "translate.googleapis.com"):
-        try:
-            async with Translator(
-                service_urls=[service_url],
-                timeout=4,
-                raise_exception=True,
-            ) as translator:
-                result = await translator.translate(text, src="en", dest="hi")
-            return result.text
-        except Exception as error:
-            last_error = error
-    raise last_error
-
-
 @lru_cache(maxsize=2048)
 def _translate_with_google(text):
-    if _google_unavailable.is_set():
-        raise TranslationError("Google Hindi translation is unavailable.")
     try:
-        translated = asyncio.run(_google_translate_async(text))
+        translated = _google_translator.translate(text, src="en", dest="hi").text
     except Exception as error:
         if not _google_unavailable.is_set():
             _google_unavailable.set()

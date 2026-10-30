@@ -1,4 +1,4 @@
-export type HindiFont = "Mukta" | "Noto Sans Devanagari"
+export type HindiFont = "Noto Sans Devanagari"
 
 type ProcessingCallback = () => void
 

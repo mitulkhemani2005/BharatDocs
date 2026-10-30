@@ -8,11 +8,10 @@ from backend.core.paths import resource_root
 
 FONT_DIRECTORY = resource_root() / "fonts"
 FONT_FILES = {
-    "Mukta": "Mukta-SemiBold.ttf",
     "Noto Sans Devanagari": "NotoSansDevanagari-Regular.ttf",
 }
 DEFAULT_TEXT_OPTIONS = {
-    "font_family": "Mukta",
+    "font_family": "Noto Sans Devanagari",
     "font_size": 14,
     "vertical_padding": 2,
     "minimum_scale": 0.7,
@@ -27,7 +26,7 @@ def _render_options(options):
     options = {**DEFAULT_TEXT_OPTIONS, **(options or {})}
     font_family = options["font_family"]
     if not isinstance(font_family, str) or font_family not in FONT_FILES:
-        raise PdfProcessingError("Choose Mukta or Noto Sans Devanagari for Hindi text.")
+        raise PdfProcessingError("Noto Sans Devanagari is the supported Hindi print font.")
     try:
         font_size = float(options["font_size"])
         vertical_padding = float(options["vertical_padding"])
@@ -46,23 +45,24 @@ def _render_options(options):
 
 def _font_css(font_family, font_size):
     filename = FONT_FILES[font_family]
-    css_weight = "600" if font_family == "Mukta" else "bold"
     return f"""
         @font-face {{
             font-family: 'PrintHindi';
             src: url('{filename}');
-            font-weight: {css_weight};
+            font-weight: 400;
+            font-style: normal;
         }}
         html, body, p {{
             font-family: 'PrintHindi';
             font-size: {font_size}pt;
+            font-weight: 400;
             color: #111111;
             margin: 0;
             padding: 0;
         }}
         p {{
             text-align: center;
-            font-weight: {css_weight};
+            font-weight: 400;
             line-height: 1;
             white-space: nowrap;
         }}

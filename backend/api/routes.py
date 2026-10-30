@@ -45,7 +45,7 @@ class TranslatePDFRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     upload_id: str
-    font_family: Literal["Mukta", "Noto Sans Devanagari"] | None = None
+    font_family: Literal["Noto Sans Devanagari"] | None = None
 
 
 def get_job_directory(upload_id: str | None) -> Path:

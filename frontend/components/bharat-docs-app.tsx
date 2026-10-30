@@ -27,7 +27,7 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024
 
 export default function BharatDocsApp() {
   const [status, setStatus] = useState<Status>("idle")
-  const [fontFamily, setFontFamily] = useState<HindiFont>("Mukta")
+  const fontFamily: HindiFont = "Noto Sans Devanagari"
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -185,21 +185,11 @@ export default function BharatDocsApp() {
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">Hindi print font</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Choose the style that is easiest to read.</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Set to regular-weight Hindi for clear printing.</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Hindi print font">
-                    {(["Mukta", "Noto Sans Devanagari"] as const).map((font) => (
-                      <button
-                        key={font}
-                        type="button"
-                        onClick={() => setFontFamily(font)}
-                        aria-pressed={fontFamily === font}
-                        className={`rounded-lg border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${fontFamily === font ? "border-orange-300 bg-orange-50 text-orange-950" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200"}`}
-                      >
-                        <span className={`block text-sm font-semibold ${font === "Mukta" ? "font-mukta" : "font-hindi"}`}>{font === "Mukta" ? "Mukta" : "Noto Sans"}</span>
-                        <span className="mt-0.5 block text-[10px] text-slate-500">{font === "Mukta" ? "Recommended" : "Classic"}</span>
-                      </button>
-                    ))}
+                  <div className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-left text-orange-950">
+                    <span className="block font-hindi text-sm font-normal">Noto Sans Devanagari</span>
+                    <span className="mt-0.5 block text-[10px] text-slate-500">Regular weight for clear print</span>
                   </div>
                 </div>
               )}
@@ -306,7 +296,7 @@ export default function BharatDocsApp() {
               <div className="mx-6 mb-6 rounded-2xl bg-[#f7f6f2] p-4">
                 <div className="flex items-center gap-3">
                   <span className="grid size-9 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><FileCheck2 className="size-4" aria-hidden="true" /></span>
-                  <div><p className="text-sm font-semibold text-slate-800">Made for readable Hindi</p><p className="mt-0.5 font-mukta text-[17px] leading-7 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
+                  <div><p className="text-sm font-semibold text-slate-800">Made for readable Hindi</p><p className="mt-0.5 font-hindi text-[17px] font-normal leading-7 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
                 </div>
               </div>
             </div>
