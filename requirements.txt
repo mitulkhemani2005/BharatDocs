@@ -1,5 +1,6 @@
-Flask>=3.0,<4
-flask-cors>=4.0,<6
-PyMuPDF>=1.23,<2
-googletrans==4.0.0-rc1
-gunicorn>=21,<24
+Flask>=3.1,<4
+flask-cors>=5,<6
+PyMuPDF>=1.27,<2
+ctranslate2>=4.8,<5
+transformers>=4.57,<5
+sentencepiece>=0.2,<1

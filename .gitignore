@@ -1,2 +1,12 @@
 frontend/node_modules
 uploads/
+.venv/
+.build/
+release/
+models/
+__pycache__/
+*.py[cod]
+frontend/out/
+desktop/node_modules/
+desktop/dist/
+desktop_backend.spec

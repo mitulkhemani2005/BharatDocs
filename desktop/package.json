@@ -1,0 +1,46 @@
+{
+  "name": "bharatdocs-desktop",
+  "version": "1.0.0",
+  "description": "Offline English-to-Hindi PDF translator for Windows",
+  "author": "BharatDocs",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build:windows": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.bharatdocs.translator",
+    "productName": "BharatDocs",
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../.build/backend/desktop_backend", "to": "backend" },
+      { "from": "../frontend/out", "to": "frontend/out" },
+      { "from": "../models/opus-mt-en-hi", "to": "models/opus-mt-en-hi" },
+      { "from": "../fonts", "to": "fonts" },
+      { "from": "../config.json", "to": "config.json" },
+      { "from": "../THIRD_PARTY_NOTICES.txt", "to": "THIRD_PARTY_NOTICES.txt" }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "BharatDocs-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

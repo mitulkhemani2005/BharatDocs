@@ -3,9 +3,10 @@ from pathlib import Path
 
 import fitz
 
+from app_paths import resource_root
 
-BASE_DIR = Path(__file__).resolve().parent
-FONT_DIRECTORY = BASE_DIR / "fonts"
+
+FONT_DIRECTORY = resource_root() / "fonts"
 FONT_FILES = {
     "Mukta": "Mukta-SemiBold.ttf",
     "Noto Sans Devanagari": "NotoSansDevanagari-Regular.ttf",

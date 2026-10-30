@@ -1,54 +1,136 @@
 import re
+import os
 import threading
-import time
 from functools import lru_cache
 
-from googletrans import Translator
+from app_paths import resource_root
 
 
 class TranslationError(Exception):
-    """Raised when the translation service cannot return usable Hindi text."""
+    """Raised when the bundled offline translator cannot return Hindi text."""
 
 
-_translator = Translator()
+MODEL_DIRECTORY = resource_root() / "models" / "opus-mt-en-hi"
 _translator_lock = threading.Lock()
-_identifier_pattern = re.compile(
-    r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\b|(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)",
+_code_pattern = re.compile(r"\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9/-]+\b", re.IGNORECASE)
+_number_pattern = re.compile(r"(?<!\w)\d+(?:[.,/:_-]\d+)*(?!\w)")
+_common_terms = {
+    "amount": "राशि",
+    "labor": "मज़दूर",
+    "labour": "मज़दूर",
+    "labor wages": "मजदूरी",
+    "labour wages": "मजदूरी",
+    "thank you": "धन्यवाद",
+    "total amount": "कुल राशि",
+    "wages": "मजदूरी",
+    "worker": "मज़दूर",
+    "workers": "मज़दूर",
+}
+_common_term_pattern = re.compile(
+    r"^(?P<term>total\s+amount|labor\s+wages|labour\s+wages|thank\s+you|amount|workers?|labor|labour|wages)"
+    r"(?P<punctuation>[.!?,:]*)$",
     re.IGNORECASE,
 )
-_token_pattern = re.compile(r"ZXQNUM(\d{4})QXZ", re.IGNORECASE)
+_amount_line_pattern = re.compile(
+    r"^(?P<label>total\s+amount|amount)(?P<separator>\s*[:\-]?\s*)"
+    r"(?P<value>\d+(?:[.,/:_-]\d+)*)(?P<punctuation>[.!?]?)$",
+    re.IGNORECASE,
+)
 
 
-def _protect_identifiers(text):
-    values = []
+@lru_cache(maxsize=1)
+def _load_offline_translator():
+    translation_dir = MODEL_DIRECTORY / "translation"
+    tokenizer_dir = MODEL_DIRECTORY / "tokenizer"
+    if not (translation_dir / "model.bin").is_file() or not (tokenizer_dir / "source.spm").is_file():
+        raise TranslationError(
+            "The offline Hindi model is missing. Reinstall BharatDocs or rebuild the app with its language model."
+        )
 
-    def replace(match):
-        token = f"ZXQNUM{len(values):04d}QXZ"
-        values.append((token, match.group(0)))
-        return token
+    try:
+        import ctranslate2
+        from transformers import MarianTokenizer
 
-    return _identifier_pattern.sub(replace, text), values
+        tokenizer = MarianTokenizer.from_pretrained(
+            str(tokenizer_dir),
+            local_files_only=True,
+        )
+        translator = ctranslate2.Translator(
+            str(translation_dir),
+            device="cpu",
+            compute_type="int8",
+            inter_threads=1,
+            intra_threads=max(1, min(4, os.cpu_count() or 1)),
+        )
+        return tokenizer, translator
+    except Exception as error:
+        raise TranslationError("The bundled offline Hindi model could not be loaded on this computer.") from error
 
 
 @lru_cache(maxsize=2048)
-def _translate_protected_text(protected_text):
-    translated_text = None
-    last_error = None
+def _translate_text(text):
+    try:
+        tokenizer, translator = _load_offline_translator()
+        source_ids = tokenizer.encode(text, add_special_tokens=True)
+        source_tokens = tokenizer.convert_ids_to_tokens(source_ids)
+        with _translator_lock:
+            result = translator.translate_batch(
+                [source_tokens],
+                beam_size=3,
+                max_decoding_length=256,
+            )[0]
+        target_ids = tokenizer.convert_tokens_to_ids(result.hypotheses[0])
+        translated = tokenizer.decode(target_ids, skip_special_tokens=True).strip()
+    except TranslationError:
+        raise
+    except Exception as error:
+        raise TranslationError("Offline English-to-Hindi translation failed. Please try this PDF again.") from error
 
-    for attempt in range(2):
-        try:
-            with _translator_lock:
-                translated_text = _translator.translate(protected_text, src="en", dest="hi").text
-            break
-        except Exception as error:  # network or provider errors vary by googletrans version
-            last_error = error
-            if attempt == 0:
-                time.sleep(0.35)
+    if not translated:
+        raise TranslationError("The offline translator returned an empty Hindi result.")
+    return translated
 
-    if not isinstance(translated_text, str) or not translated_text.strip():
-        raise TranslationError("Hindi translation is temporarily unavailable. Check the internet connection and try again.") from last_error
 
-    return translated_text
+def _translate_piece(piece):
+    leading_whitespace = piece[: len(piece) - len(piece.lstrip())]
+    trailing_whitespace = piece[len(piece.rstrip()) :]
+    content = piece.strip()
+    if not content:
+        return piece
+
+    amount_match = _amount_line_pattern.fullmatch(content)
+    if amount_match:
+        label = "कुल राशि" if amount_match.group("label").casefold().startswith("total") else "राशि"
+        separator = ": " if ":" in amount_match.group("separator") else " "
+        translated = f"{label}{separator}{amount_match.group('value')}{amount_match.group('punctuation')}"
+        return leading_whitespace + translated + trailing_whitespace
+
+    term_match = _common_term_pattern.fullmatch(content)
+    if term_match:
+        translated = _common_terms[term_match.group("term").casefold()]
+        translated += term_match.group("punctuation")
+        return leading_whitespace + translated + trailing_whitespace
+
+    numbers = list(_number_pattern.finditer(content))
+    translated = _translate_text(content)
+    translated_numbers = list(_number_pattern.finditer(translated))
+    if numbers and len(numbers) == len(translated_numbers):
+        for source_number, target_number in reversed(list(zip(numbers, translated_numbers))):
+            translated = (
+                translated[: target_number.start()]
+                + source_number.group(0)
+                + translated[target_number.end() :]
+            )
+    elif numbers:
+        parts = []
+        previous_end = 0
+        for number in numbers:
+            parts.append(_translate_text(content[previous_end : number.start()].strip()))
+            parts.append(number.group(0))
+            previous_end = number.end()
+        parts.append(_translate_text(content[previous_end:].strip()))
+        translated = " ".join(part for part in parts if part)
+    return leading_whitespace + translated + trailing_whitespace
 
 
 def translate_to_hindi(text):
@@ -57,16 +139,15 @@ def translate_to_hindi(text):
     if not text.strip():
         return text
 
-    protected_text, protected_values = _protect_identifiers(text)
-    translated_text = _translate_protected_text(protected_text)
-    translated_tokens = [match.group(0).upper() for match in _token_pattern.finditer(translated_text)]
-    expected_tokens = [token for token, _ in protected_values]
-    if sorted(translated_tokens) != sorted(expected_tokens):
-        raise TranslationError("The translation service changed a number or code. Please try again.")
-
-    originals = {token: value for token, value in protected_values}
-
-    def restore(match):
-        return originals[match.group(0).upper()]
-
-    return _token_pattern.sub(restore, translated_text).strip()
+    sentences = re.split(r"(?<=[.!?])(?=\s)|(?<=\n)", text)
+    translated_sentences = []
+    for sentence in sentences:
+        pieces = []
+        previous_end = 0
+        for match in _code_pattern.finditer(sentence):
+            pieces.append(_translate_piece(sentence[previous_end : match.start()]))
+            pieces.append(match.group(0))
+            previous_end = match.end()
+        pieces.append(_translate_piece(sentence[previous_end:]))
+        translated_sentences.append("".join(pieces))
+    return "".join(translated_sentences).strip()

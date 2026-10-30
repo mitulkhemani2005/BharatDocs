@@ -1,0 +1,12 @@
+BharatDocs includes the following third-party assets:
+
+English-to-Hindi translation model
+  Helsinki-NLP/opus-mt-en-hi, Apache-2.0
+  Model card: https://huggingface.co/Helsinki-NLP/opus-mt-en-hi
+  The installed package includes an int8 CTranslate2 conversion of the model.
+  The Apache License 2.0 text is included as LICENSE-OPUS-MT.txt with the model.
+
+Hindi typefaces
+  Mukta is licensed under the SIL Open Font License 1.1; see fonts/Mukta-OFL.txt.
+  Noto Sans Devanagari is licensed under the SIL Open Font License 1.1; see
+  fonts/Noto-OFL.txt.

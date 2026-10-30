@@ -7,11 +7,13 @@ import uuid
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file
+from flask import send_from_directory
 from flask_cors import CORS
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from config_loader import load_config
+from app_paths import resource_root, user_data_root
 from pdf_modifier import PdfProcessingError, apply_translations_to_pdf
 from pdf_reader import PdfValidationError, get_pdf_info
 from region_text_extractor import extract_text_from_regions
@@ -19,16 +21,17 @@ from region_translator import translate_regions
 from translator import TranslationError
 
 
-BASE_DIR = Path(__file__).resolve().parent
-UPLOAD_FOLDER = BASE_DIR / "uploads"
+BASE_DIR = resource_root()
+UPLOAD_FOLDER = user_data_root() / "uploads"
 CONFIG_PATH = BASE_DIR / "config.json"
+FRONTEND_DIRECTORY = BASE_DIR / "frontend" / "out"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 200
 UPLOAD_TTL_SECONDS = 2 * 60 * 60
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES + 1024 * 1024
 allowed_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 CORS(app, resources={r"/*": {"origins": [origin.strip() for origin in allowed_origins]}})
@@ -136,7 +139,31 @@ def remove_expired_uploads():
 
 @app.route("/")
 def index():
+    exported_index = FRONTEND_DIRECTORY / "index.html"
+    if exported_index.is_file():
+        return send_from_directory(FRONTEND_DIRECTORY, "index.html")
     return jsonify({"message": "BharatDocs PDF translation service is running."})
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/<path:frontend_path>")
+def frontend_assets(frontend_path):
+    if not (FRONTEND_DIRECTORY / "index.html").is_file():
+        raise ApiError("The frontend has not been built yet.", 404)
+
+    asset_path = (FRONTEND_DIRECTORY / frontend_path).resolve()
+    if not asset_path.is_relative_to(FRONTEND_DIRECTORY.resolve()):
+        raise ApiError("The requested file was not found.", 404)
+    if asset_path.is_file():
+        return send_from_directory(FRONTEND_DIRECTORY, frontend_path)
+    page_path = (FRONTEND_DIRECTORY / f"{frontend_path}.html").resolve()
+    if page_path.is_relative_to(FRONTEND_DIRECTORY.resolve()) and page_path.is_file():
+        return send_from_directory(FRONTEND_DIRECTORY, f"{frontend_path}.html")
+    return send_from_directory(FRONTEND_DIRECTORY, "index.html")
 
 
 @app.route("/upload", methods=["POST"])
@@ -271,4 +298,4 @@ def translate_pdf():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5000")), debug=False, threaded=True)

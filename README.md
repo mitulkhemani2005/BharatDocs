@@ -1,4 +1,4 @@
-# BharatDocs - English to Hindi PDF Converter
+# BharatDocs - Offline English to Hindi PDF Converter
 
 BharatDocs translates text from configured PDF regions into Hindi, writes the result back into a copy of the PDF, and lets the user preview or download it. The interface is designed for bills from New Durga Agencies, Ujjain.
 
@@ -10,11 +10,15 @@ BharatDocs translates text from configured PDF regions into Hindi, writes the re
 - Preserve detected numeric values and identifiers during translation.
 - Preview and download the translated PDF.
 - Keep each upload in a separate, short-lived session.
+- Translate locally with a bundled English-to-Hindi model; user documents stay on the computer.
+- Install the Windows desktop app once and use it without an internet connection.
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.10 or newer for development
 - Node.js 20 or newer
+
+People using the packaged Windows app do not need Python, Node.js, or internet access.
 
 ## Run locally
 
@@ -24,6 +28,8 @@ Install and start the Flask backend from the project root:
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m pip install -r model-build-requirements.txt
+python scripts/prepare_offline_model.py
 python app.py
 ```
 
@@ -75,4 +81,16 @@ Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload ses
 - `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
 - `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
 
-The translation provider requires internet access. If translation is unavailable, the API returns a readable error so the user can retry.
+The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. Afterward, `python app.py` and the desktop app translate without contacting a translation service.
+
+## Build the offline Windows installer
+
+Build on a Windows x64 computer while online. The first build downloads the translation model and desktop packaging dependencies. The generated setup app includes the frontend, Python service, Hindi fonts, local translation model, and Electron runtime:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
+```
+
+The installer is written to `release\BharatDocs-Setup-1.0.0.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild without downloading or reconverting the model, use `-SkipModelPreparation` after the `models\opus-mt-en-hi` folder has already been prepared.
+
+The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.
