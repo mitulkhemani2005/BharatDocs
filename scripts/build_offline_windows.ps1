@@ -45,10 +45,11 @@ try {
     if (-not (Test-Path (Join-Path $FrontendDirectory "node_modules"))) {
         Invoke-Checked "npm" @("ci")
     }
-    $env:NEXT_PUBLIC_API_URL = ""
     Invoke-Checked "npm" @("run", "build:desktop")
+    if (-not (Test-Path (Join-Path $FrontendDirectory ".next-desktop\index.html"))) {
+        throw "The desktop frontend export was not created."
+    }
 } finally {
-    Remove-Item Env:NEXT_PUBLIC_API_URL -ErrorAction SilentlyContinue
     Pop-Location
 }
 

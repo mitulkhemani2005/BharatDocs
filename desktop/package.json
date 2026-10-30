@@ -24,7 +24,7 @@
     ],
     "extraResources": [
       { "from": "../.build/backend/desktop_backend", "to": "backend" },
-      { "from": "../frontend/out", "to": "frontend/out" },
+      { "from": "../frontend/.next-desktop", "to": "frontend/out" },
       { "from": "../models/opus-mt-en-hi", "to": "models/opus-mt-en-hi" },
       { "from": "../fonts", "to": "fonts" },
       { "from": "../config.json", "to": "config.json" },

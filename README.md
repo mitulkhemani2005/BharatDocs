@@ -20,7 +20,11 @@ BharatDocs translates text from configured PDF regions into Hindi, writes the re
 
 People using the packaged Windows app do not need Python, Node.js, or internet access.
 
-## Run locally
+## Website and desktop app
+
+The website and Windows app have separate build outputs. The website stays a normal Next.js app and runs in the browser. The desktop app opens its own window, serves its own static frontend, and starts a local offline backend.
+
+### Website
 
 Install and start the Flask backend from the project root:
 
@@ -41,7 +45,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The frontend uses `http://localhost:5000` by default. Set `NEXT_PUBLIC_API_URL` before starting the frontend to use a different backend address.
+Open `http://localhost:3000`. In development, the frontend uses `http://localhost:5000` by default. Set `NEXT_PUBLIC_API_URL` to the hosted backend URL for the website deployment. `npm run build` (or `npm run build:web`) builds the website into Next.js's `.next` directory and does not create a static desktop export.
 
 ## Configure text regions
 
@@ -81,7 +85,7 @@ Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload ses
 - `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
 - `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
 
-The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. Afterward, `python app.py` and the desktop app translate without contacting a translation service.
+The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. Afterward, `python app.py` and the desktop app translate without contacting a translation service. The website can continue using its configured hosted backend independently.
 
 ## Build the offline Windows installer
 
@@ -91,6 +95,6 @@ Build on a Windows x64 computer while online. The first build downloads the tran
 powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
 ```
 
-The installer is written to `release\BharatDocs-Setup-1.0.0.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild without downloading or reconverting the model, use `-SkipModelPreparation` after the `models\opus-mt-en-hi` folder has already been prepared.
+The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.0.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild without downloading or reconverting the model, use `-SkipModelPreparation` after the `models\opus-mt-en-hi` folder has already been prepared.
 
 The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.

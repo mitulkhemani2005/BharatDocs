@@ -25,10 +25,8 @@ type HindiFont = "Mukta" | "Noto Sans Devanagari"
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 function getApiBase() {
-  if (typeof window !== "undefined") {
-    const localHost = ["127.0.0.1", "localhost"].includes(window.location.hostname)
-    const developmentPort = ["3000", "3001"].includes(window.location.port)
-    if (localHost && window.location.port && !developmentPort) return window.location.origin
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_DESKTOP_APP === "1") {
+    return window.location.origin
   }
   const configuredApi = process.env.NEXT_PUBLIC_API_URL
   if (configuredApi) return configuredApi.replace(/\/$/, "")

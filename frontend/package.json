@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "build:desktop": "next build",
+    "build": "npm run build:web",
+    "build:web": "node scripts/build-web.mjs",
+    "build:desktop": "node scripts/build-desktop.mjs",
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start"
