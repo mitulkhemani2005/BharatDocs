@@ -6,9 +6,12 @@ import fitz
 
 BASE_DIR = Path(__file__).resolve().parent
 FONT_DIRECTORY = BASE_DIR / "fonts"
-FONT_FILENAME = "NotoSansDevanagari-Regular.ttf"
-FONT_PATH = FONT_DIRECTORY / FONT_FILENAME
+FONT_FILES = {
+    "Mukta": "Mukta-SemiBold.ttf",
+    "Noto Sans Devanagari": "NotoSansDevanagari-Regular.ttf",
+}
 DEFAULT_TEXT_OPTIONS = {
+    "font_family": "Mukta",
     "font_size": 14,
     "vertical_padding": 2,
     "minimum_scale": 0.8,
@@ -21,6 +24,9 @@ class PdfProcessingError(Exception):
 
 def _render_options(options):
     options = {**DEFAULT_TEXT_OPTIONS, **(options or {})}
+    font_family = options["font_family"]
+    if not isinstance(font_family, str) or font_family not in FONT_FILES:
+        raise PdfProcessingError("Choose Mukta or Noto Sans Devanagari for Hindi text.")
     try:
         font_size = float(options["font_size"])
         vertical_padding = float(options["vertical_padding"])
@@ -34,17 +40,20 @@ def _render_options(options):
         raise PdfProcessingError("Hindi PDF vertical padding must be between 0 and 3 points.")
     if not 0.5 <= minimum_scale <= 1:
         raise PdfProcessingError("Hindi PDF minimum scale must be between 0.5 and 1.")
-    return font_size, vertical_padding, minimum_scale
+    return font_family, font_size, vertical_padding, minimum_scale
 
 
-def _font_css(font_size):
+def _font_css(font_family, font_size):
+    filename = FONT_FILES[font_family]
+    css_weight = "600" if font_family == "Mukta" else "bold"
     return f"""
         @font-face {{
-            font-family: 'NotoHindi';
-            src: url('{FONT_FILENAME}');
+            font-family: 'PrintHindi';
+            src: url('{filename}');
+            font-weight: {css_weight};
         }}
         html, body, p {{
-            font-family: 'NotoHindi';
+            font-family: 'PrintHindi';
             font-size: {font_size}pt;
             color: #111111;
             margin: 0;
@@ -52,7 +61,7 @@ def _font_css(font_size):
         }}
         p {{
             text-align: center;
-            font-weight: bold;
+            font-weight: {css_weight};
             line-height: 1;
             white-space: nowrap;
         }}
@@ -75,14 +84,14 @@ def apply_translations_to_pdf(
     translated_regions,
     text_options=None,
 ):
-    if not FONT_PATH.is_file():
-        raise PdfProcessingError("The Noto Sans Devanagari font file is missing.")
-
-    font_size, vertical_padding, minimum_scale = _render_options(text_options)
+    font_family, font_size, vertical_padding, minimum_scale = _render_options(text_options)
+    font_path = FONT_DIRECTORY / FONT_FILES[font_family]
+    if not font_path.is_file():
+        raise PdfProcessingError(f"The {font_family} font file is missing.")
     output_path = Path(output_pdf_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     archive = fitz.Archive(str(FONT_DIRECTORY))
-    css = _font_css(font_size)
+    css = _font_css(font_family, font_size)
 
     try:
         with fitz.open(input_pdf_path) as doc:

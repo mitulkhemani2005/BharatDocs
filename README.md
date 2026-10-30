@@ -45,6 +45,7 @@ The `pdf_text` section controls output typography:
 
 ```json
 "pdf_text": {
+  "font_family": "Mukta",
   "font_size": 14,
   "vertical_padding": 2,
   "minimum_scale": 0.8
@@ -53,7 +54,7 @@ The `pdf_text` section controls output typography:
 
 An individual region may include `text_offset_y` to shift its Hindi line vertically while leaving the cleared source area unchanged.
 
-The Noto font is stored in `fonts/NotoSansDevanagari-Regular.ttf` for PDF output and `frontend/public/fonts/` for Hindi interface text. Keep these files when deploying.
+The upload screen lets users choose Mukta SemiBold (recommended for print) or Noto Sans Devanagari. Both fonts are bundled locally for PDF output and Hindi interface text. Mukta is distributed under the SIL Open Font License; its license is included beside the font files. Keep these files when deploying.
 
 ## API
 
@@ -64,7 +65,7 @@ The Noto font is stored in `fonts/NotoSansDevanagari-Regular.ttf` for PDF output
 | `GET` | `/verify-pdf?upload_id=...` | Return page count and encryption status |
 | `GET` | `/extract-regions?upload_id=...` | Extract text from configured regions |
 | `GET` | `/translate-regions?upload_id=...` | Return translated region text as JSON |
-| `POST` | `/translate-pdf` | Accept `{"upload_id":"..."}` and return a translated PDF |
+| `POST` | `/translate-pdf` | Accept `{"upload_id":"...","font_family":"Mukta"}` and return a translated PDF. `font_family` may be `Mukta` or `Noto Sans Devanagari`. |
 
 Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload session is isolated from other requests and is removed after PDF conversion; abandoned sessions are cleaned up after two hours.
 

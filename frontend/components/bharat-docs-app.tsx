@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 
 type Status = "idle" | "uploading" | "processing" | "complete"
+type HindiFont = "Mukta" | "Noto Sans Devanagari"
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000").replace(/\/$/, "")
@@ -32,6 +33,7 @@ async function responseError(response: Response, fallback: string) {
 
 export default function BharatDocsApp() {
   const [status, setStatus] = useState<Status>("idle")
+  const [fontFamily, setFontFamily] = useState<HindiFont>("Mukta")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +80,7 @@ export default function BharatDocsApp() {
       const translationResponse = await fetch(`${API_BASE}/translate-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id: upload.upload_id }),
+        body: JSON.stringify({ upload_id: upload.upload_id, font_family: fontFamily }),
       })
       if (!translationResponse.ok) {
         throw new Error(await responseError(translationResponse, "The PDF could not be translated. Please try again."))
@@ -208,6 +210,28 @@ export default function BharatDocsApp() {
               className={`mt-9 rounded-2xl border bg-white p-5 shadow-[0_18px_55px_-35px_rgba(15,23,42,0.25)] transition sm:p-6 ${isDragging ? "border-orange-400 ring-4 ring-orange-100" : "border-slate-200/80"}`}
               aria-live="polite"
             >
+              {status === "idle" && (
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Hindi print font</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Choose the style that is easiest to read.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Hindi print font">
+                    {(["Mukta", "Noto Sans Devanagari"] as const).map((font) => (
+                      <button
+                        key={font}
+                        type="button"
+                        onClick={() => setFontFamily(font)}
+                        aria-pressed={fontFamily === font}
+                        className={`rounded-lg border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${fontFamily === font ? "border-orange-300 bg-orange-50 text-orange-950" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200"}`}
+                      >
+                        <span className={`block text-sm font-semibold ${font === "Mukta" ? "font-mukta" : "font-hindi"}`}>{font === "Mukta" ? "Mukta" : "Noto Sans"}</span>
+                        <span className="mt-0.5 block text-[10px] text-slate-500">{font === "Mukta" ? "Recommended" : "Classic"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {status === "complete" ? (
                 <div className="flex flex-col gap-5">
                   <div className="flex items-start gap-3">
@@ -311,7 +335,7 @@ export default function BharatDocsApp() {
               <div className="mx-6 mb-6 rounded-2xl bg-[#f7f6f2] p-4">
                 <div className="flex items-center gap-3">
                   <span className="grid size-9 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><FileCheck2 className="size-4" aria-hidden="true" /></span>
-                  <div><p className="text-sm font-semibold text-slate-800">Made for readable Hindi</p><p className="mt-0.5 font-hindi text-[17px] leading-7 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
+                  <div><p className="text-sm font-semibold text-slate-800">Made for readable Hindi</p><p className="mt-0.5 font-mukta text-[17px] leading-7 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
                 </div>
               </div>
             </div>

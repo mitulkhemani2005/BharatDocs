@@ -9,6 +9,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Mukta Devanagari';
+  src: url('/fonts/Mukta-SemiBold.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -137,5 +145,9 @@
   [lang='hi'],
   .font-hindi {
     font-family: 'Noto Sans Devanagari', 'Nirmala UI', sans-serif;
+  }
+  .font-mukta {
+    font-family: 'Mukta Devanagari', 'Noto Sans Devanagari', sans-serif;
+    font-weight: 600;
   }
 }

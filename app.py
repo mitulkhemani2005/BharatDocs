@@ -228,6 +228,11 @@ def translate_pdf():
     job_dir, pdf_path = get_uploaded_pdf(data.get("upload_id"))
     output_path = job_dir / "translated.pdf"
     regions, text_options = get_regions_and_options()
+    selected_font = data.get("font_family")
+    if selected_font is not None:
+        if selected_font not in ("Mukta", "Noto Sans Devanagari"):
+            raise ApiError("Choose a supported Hindi font and try again.", 400)
+        text_options["font_family"] = selected_font
 
     try:
         info = get_pdf_info(pdf_path)
