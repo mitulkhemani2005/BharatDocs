@@ -1,6 +1,6 @@
-# BharatDocs - Offline English to Hindi PDF Converter
+# BharatDocs
 
-BharatDocs translates text from configured PDF regions into Hindi, writes the result back into a copy of the PDF, and lets the user preview or download it. The interface is designed for bills from New Durga Agencies, Ujjain.
+BharatDocs translates text from configured regions in PDF bills into Hindi, writes the result into a new PDF, and lets the user preview or download it. The web frontend is built with Next.js. The Python API is built with FastAPI.
 
 ## Features
 
@@ -10,9 +10,9 @@ BharatDocs translates text from configured PDF regions into Hindi, writes the re
 - Preserve detected numeric values and identifiers during translation.
 - Preview and download the translated PDF.
 - Keep each upload in a separate, short-lived session.
-- Use the earlier Google Hindi translation when online, with the bundled English-to-Hindi model as an offline fallback.
-- Keep using the Windows desktop app without an internet connection; its local fallback remains bundled.
-- When Google Translate is available, extracted region text is sent to that service for translation. Offline fallback keeps translation on the computer.
+- Translate with Google Translate when it is available; use the bundled OPUS-MT model as an offline fallback.
+- Keep using the Windows desktop app without an internet connection.
+- Online translation sends only the extracted text from configured regions to Google. Offline translation stays on the computer.
 
 ## Requirements
 
@@ -21,32 +21,45 @@ BharatDocs translates text from configured PDF regions into Hindi, writes the re
 
 People using the packaged Windows app do not need Python, Node.js, or internet access.
 
-## Website and desktop app
+## Project layout
 
-The website and Windows app have separate build outputs. The website stays a normal Next.js app and runs in the browser. The desktop app opens its own window, serves its own static frontend, and starts a local offline backend.
+```text
+backend/              FastAPI application, routes, and PDF/translation services
+frontend/             Next.js website and desktop frontend
+desktop/               Electron desktop shell
+scripts/               Model preparation and Windows packaging
+config.json            Active PDF regions and typography
+config_examples/       Optional layout examples
+```
 
-### Website
+The website and Windows app have separate frontend builds. The desktop app opens in its own window and starts a local backend.
 
-Install and start the Flask backend from the project root:
+## Run the website locally
+
+Use Python 3.10 or newer and Node.js 20 or newer. In the project root, prepare the backend and its offline fallback model once:
 
 ```powershell
+cd D:\NDA_Converter
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m pip install -r model-build-requirements.txt
 python scripts/prepare_offline_model.py
-python app.py
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 
-In another terminal, install and start the Next.js frontend:
+In a second terminal, start the Next.js website:
 
 ```powershell
-cd frontend
-npm install
+cd D:\NDA_Converter\frontend
+npm ci
+$env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:5000"
 npm run dev
 ```
 
-Open `http://localhost:3000`. In development, the frontend uses `http://localhost:5000` by default. Set `NEXT_PUBLIC_API_URL` to the hosted backend URL for the website deployment. `npm run build` (or `npm run build:web`) builds the website into Next.js's `.next` directory and does not create a static desktop export.
+Open `http://localhost:3000`. The `NEXT_PUBLIC_API_URL` setting makes sure this frontend talks to your local FastAPI backend. Interactive API documentation is at `http://127.0.0.1:5000/docs`.
+
+`npm run build` creates the Next.js website build. `npm run build:desktop` creates the separate static frontend used by the Electron app.
 
 ## Configure text regions
 
@@ -69,9 +82,12 @@ The upload screen lets users choose Mukta SemiBold (recommended for print) or No
 
 ## API
 
+The FastAPI service exposes an OpenAPI schema at `/openapi.json` and interactive API documentation at `/docs`.
+
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Backend health check |
+| `GET` | `/` | Desktop frontend when packaged; API status in development |
+| `GET` | `/health` | Backend health check |
 | `POST` | `/upload` | Validate and create an upload session; returns an `upload_id` |
 | `GET` | `/verify-pdf?upload_id=...` | Return page count and encryption status |
 | `GET` | `/extract-regions?upload_id=...` | Extract text from configured regions |
@@ -82,11 +98,12 @@ Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload ses
 
 ## Deployment settings
 
-- `PORT` sets the Flask listen port (default `5000`).
+- `PORT` sets the Uvicorn listen port (default `5000`).
+- `HOST` sets the local backend bind address (default `127.0.0.1`).
 - `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
 - `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
 
-The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. It requires internet access once during development. When Google Translate cannot be reached, `python app.py` and the desktop app use this bundled model locally. Online translations use the same Google Translate path as the earlier version; translated-region text is sent to Google while that service is available.
+The deployment `Procfile` starts FastAPI with Uvicorn. The model preparation command downloads the pinned OPUS-MT English-to-Hindi model and converts it to a local CPU format. When Google Translate cannot be reached, the API uses this model locally. The alternate bill layout is preserved as `config_examples/second-bill.json`; `config.json` is the active layout.
 
 ## Build the offline Windows installer
 

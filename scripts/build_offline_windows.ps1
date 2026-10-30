@@ -42,9 +42,7 @@ if (-not $SkipModelPreparation) {
 $FrontendDirectory = Join-Path $ProjectRoot "frontend"
 Push-Location $FrontendDirectory
 try {
-    if (-not (Test-Path (Join-Path $FrontendDirectory "node_modules"))) {
-        Invoke-Checked "npm" @("ci")
-    }
+    Invoke-Checked "npm" @("ci")
     Invoke-Checked "npm" @("run", "build:desktop")
     if (-not (Test-Path (Join-Path $FrontendDirectory ".next-desktop\index.html"))) {
         throw "The desktop frontend export was not created."
@@ -70,23 +68,31 @@ $PyInstallerArgs = @(
     "--workpath", $BackendWork,
     "--specpath", $BuildRoot,
     "--paths", $ProjectRoot,
+    "--collect-all", "fastapi",
+    "--collect-all", "starlette",
+    "--collect-all", "uvicorn",
+    "--collect-all", "multipart",
     "--collect-all", "ctranslate2",
     "--collect-all", "transformers",
     "--collect-all", "tokenizers",
     "--collect-all", "sentencepiece",
     "--copy-metadata", "ctranslate2",
+    "--copy-metadata", "fastapi",
+    "--copy-metadata", "starlette",
+    "--copy-metadata", "uvicorn",
+    "--copy-metadata", "googletrans",
     "--copy-metadata", "transformers",
     "--copy-metadata", "huggingface-hub",
     "--copy-metadata", "tokenizers",
     "--copy-metadata", "sentencepiece",
-    (Join-Path $ProjectRoot "app.py")
+    (Join-Path $ProjectRoot "backend\main.py")
 )
 Invoke-Checked $RuntimePython $PyInstallerArgs
 
 $DesktopDirectory = Join-Path $ProjectRoot "desktop"
 Push-Location $DesktopDirectory
 try {
-    Invoke-Checked "npm" @("install")
+    Invoke-Checked "npm" @("ci")
     Invoke-Checked "npm" @("run", "build:windows")
 } finally {
     Pop-Location
