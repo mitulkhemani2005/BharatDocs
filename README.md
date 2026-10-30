@@ -115,6 +115,6 @@ Build on a Windows x64 computer while online. The first build downloads the tran
 powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
 ```
 
-The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.1.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
+The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.2.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
 
 The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.

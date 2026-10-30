@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,10 +14,18 @@ from starlette.status import HTTP_400_BAD_REQUEST
 from starlette.middleware.cors import CORSMiddleware
 
 from backend.api.routes import APIError, router
+from backend.core.asyncio_errors import windows_disconnect_handler
 from backend.core.paths import resource_root
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    with windows_disconnect_handler(asyncio.get_running_loop()):
+        yield
+
 
 app = FastAPI(
     title="BharatDocs API",
@@ -23,6 +33,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 allowed_origins = [
