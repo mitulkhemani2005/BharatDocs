@@ -47,12 +47,6 @@ _amount_line_pattern = re.compile(
 )
 
 
-def _looks_like_uppercase_name(text):
-    letters = [character for character in text if character.isalpha()]
-    words = re.findall(r"[A-Za-z]{2,}", text)
-    return len(letters) > 0 and len(words) >= 2 and all(character.isupper() for character in letters)
-
-
 @lru_cache(maxsize=1)
 def _load_offline_translator():
     translation_dir = MODEL_DIRECTORY / "translation"
@@ -126,11 +120,10 @@ def _translate_piece(piece):
         translated += term_match.group("punctuation")
         return leading_whitespace + translated + trailing_whitespace
 
-    if _looks_like_uppercase_name(content):
-        return leading_whitespace + content + trailing_whitespace
-
     numbers = list(_number_pattern.finditer(content))
-    translated = _translate_text(content)
+    letters = [character for character in content if character.isalpha()]
+    model_input = content.lower() if letters and all(character.isupper() for character in letters) else content
+    translated = _translate_text(model_input)
     translated_numbers = list(_number_pattern.finditer(translated))
     if numbers and len(numbers) == len(translated_numbers):
         for source_number, target_number in reversed(list(zip(numbers, translated_numbers))):
