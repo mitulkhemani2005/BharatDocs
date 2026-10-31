@@ -401,7 +401,7 @@ export default function BharatDocsApp() {
           </section>
         </div>
       )}
-      {editor && <ConfigurationEditor configuration={editor.configuration} initialUploadId={uploadId} canUpload={isDesktopApp || hasAcceptedTerms} onClose={() => setEditor(null)} onSaved={saved => {
+      {editor && <ConfigurationEditor configuration={editor.configuration} initialUploadId={uploadId} onClose={() => setEditor(null)} onSaved={saved => {
         setConfigurations(previous => [saved, ...previous.filter(item => item.id !== saved.id)])
         chooseConfiguration(saved.id)
         setEditor(null)

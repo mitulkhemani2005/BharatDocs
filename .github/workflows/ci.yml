@@ -40,6 +40,8 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
+      - run: node scripts/test-area-layout.mjs
+        working-directory: frontend
       - run: npm run brand:build
         working-directory: frontend
       - run: npm run build:web

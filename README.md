@@ -86,13 +86,13 @@ Upload your PDF first. Then select a configuration or use **New configuration** 
 
 1. Enter a name. The uploaded English PDF opens automatically as the reference.
 2. Select any reference page, then drag rectangles around the English fields to translate.
-3. Use **+ Non-translation area** to draw red protected areas around amounts, labels, or logos. These areas remain unchanged even inside a blue translation area. Select any area in the list to rename, redraw, or delete it.
+3. Use **+ Non-translation area** to draw red protected areas around amounts, labels, or logos. These areas remain unchanged even inside a blue translation area. Rename areas directly in the PDF areas list. Select **Move area** and drag the selected rectangle to reposition it; **Redraw area** changes its size. **Delete selected area** is below these controls, and **Delete configuration** is in the header.
 4. Save the configuration, select it on the main screen, and click **Translate PDF into Hindi**. The areas repeat on every page and scale proportionally with page size. You can choose another configuration and translate the same upload again during its two-hour session.
 5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
 
 Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
 
-The editor uses selectable PDF text, not OCR. Hindi spacing, line wrapping, and font fitting adjust automatically using nearby free space while avoiding protected areas, neighboring content, and table rules. The renderer keeps the effective font size at least 8 points and reports insufficient page space if readable text cannot fit. Same-type rectangles cannot overlap; a protected area may overlap a translation area. The last selected configuration is remembered in the browser.
+The editor uses selectable PDF text, not OCR. Hindi spacing, line wrapping, and font fitting adjust automatically using nearby free space while avoiding protected areas, neighboring content, and table rules. The renderer keeps the effective font size at least 8 points and reports insufficient page space if readable text cannot fit. Overlapping drawn areas of the same type are combined automatically. Moved areas snap to the nearest free position; if none is available they are combined with the overlapping areas. Protected areas can overlap translation areas. The last selected configuration is remembered in the browser.
 
 The app starts with an empty configuration list. Upload your PDF, then create or choose a configuration for conversion. Deleting the selected configuration keeps the PDF ready while you choose or create another layout.
 
