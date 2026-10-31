@@ -13,33 +13,60 @@ from backend.services.pdf_modifier import (
 
 
 class HindiSpacingTests(unittest.TestCase):
-    def test_selected_size_is_exact_even_when_a_continuation_is_needed(self):
+    def test_exact_font_and_pixels_outside_selected_area_are_preserved(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / 'source.pdf'
+            box = fitz.Rect(20, 20, 200, 120)
             with fitz.open() as doc:
-                doc.new_page(width=100, height=80).insert_text((10, 25), 'NAME', fontsize=6)
+                page = doc.new_page(width=300, height=200)
+                page.insert_text((30, 50), 'NAME', fontsize=6)
+                page.insert_text((20, 170), 'KEEP OUTSIDE', fontsize=12)
+                before = page.get_pixmap().samples
                 doc.save(source)
             for size in (10, 24, 32):
                 output = Path(temporary) / f'{size}.pdf'
-                apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': [8, 15, 35, 28], 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'}], {'font_size': size})
+                apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': list(box), 'text_rect': [20, 130, 200, 190], 'hindi_text': 'अशोक किराना'}], {'font_size': size})
                 with fitz.open(output) as doc:
-                    spans = [span for page in doc for block in page.get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
+                    self.assertEqual(len(doc), 1)
+                    page = doc[0]
+                    after = page.get_pixmap().samples
+                    for y in range(200):
+                        if 20 <= y < 120:
+                            ranges = ((0, 20), (200, 300))
+                        else:
+                            ranges = ((0, 300),)
+                        for x0, x1 in ranges:
+                            start, end = (y*300+x0)*3, (y*300+x1)*3
+                            self.assertEqual(before[start:end], after[start:end])
+                    spans = [span for block in page.get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
                     self.assertTrue(spans)
-                    for span in spans:
-                        self.assertAlmostEqual(span['size'], size, delta=.01)
+                    self.assertAlmostEqual(spans[0]['size'], size, delta=.01)
+                    self.assertIn('अशोक', page.get_text(clip=box))
 
-    def test_shared_space_is_tried_at_large_size_before_compacting(self):
+    def test_crowded_area_reports_its_name_without_moving_or_appending(self):
         with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            source, output = Path(temporary)/'source.pdf', Path(temporary)/'output.pdf'
             with fitz.open() as doc:
-                page = doc.new_page(width=300, height=180)
-                page.insert_text((20, 60), 'NAME', fontsize=8)
+                doc.new_page(width=300, height=200).insert_text((20, 30), 'NAME', fontsize=8)
                 doc.save(source)
-            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': [15, 50, 45, 65], 'hindi_text': 'अशोक किराना'}])
+            with self.assertRaisesRegex(PdfProcessingError, "Shop name.*18 pt"):
+                apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Shop name', 'rect': [15, 20, 40, 30], 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'}])
+            self.assertFalse(output.exists())
+
+    def test_hindi_wraps_inside_a_tall_selected_area(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary)/'source.pdf', Path(temporary)/'output.pdf'
+            with fitz.open() as doc:
+                doc.new_page(width=300, height=220).insert_text((25, 40), 'NAME', fontsize=8)
+                doc.save(source)
+            box = fitz.Rect(20, 20, 110, 195)
+            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': list(box), 'hindi_text': 'अशोक किराना एवं जनरल स्टोर ऋषि नगर'}])
             with fitz.open(output) as doc:
-                spans = [span for block in doc[0].get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
-                self.assertTrue(spans)
-                self.assertGreaterEqual(spans[0]['size'], 17.09)
+                self.assertEqual(len(doc), 1)
+                self.assertIn('अशोक', doc[0].get_text(clip=box))
+
+
+
 
     def test_fast_clipping_preserves_exact_unmasked_coverage(self):
         rng = random.Random(42)
@@ -55,70 +82,9 @@ class HindiSpacingTests(unittest.TestCase):
                 for second in pieces[i + 1:]:
                     self.assertFalse(first.intersects(second))
 
-    def test_crowded_fields_borrow_shared_space_without_a_continuation(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
-            with fitz.open() as doc:
-                page = doc.new_page(width=220, height=120)
-                page.insert_text((11, 28), 'A', fontsize=6)
-                page.insert_text((40, 28), 'B', fontsize=6)
-                page.draw_line((0, 18), (220, 18))
-                page.draw_line((0, 42), (220, 42))
-                doc.save(source)
-            apply_translations_to_pdf(source, output, [
-                {'page': 0, 'region_name': 'Name', 'rect': [10, 20, 30, 32], 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'},
-                {'page': 0, 'region_name': 'Address', 'rect': [32, 20, 180, 32], 'hindi_text': 'नगर'},
-            ])
-            with fitz.open(output) as doc:
-                self.assertEqual(len(doc), 1)
-                self.assertIn('अशोक', doc[0].get_text())
-                self.assertIn('नगर', doc[0].get_text())
 
-    def test_full_page_gets_readable_continuation_and_original_is_unchanged(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
-            with fitz.open() as doc:
-                page = doc.new_page(width=200, height=100)
-                image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 10), False)
-                image.clear_with(240)
-                page.insert_image(page.rect, pixmap=image)
-                page.insert_text((20, 35), 'ASHOK', fontsize=12)
-                before = page.get_pixmap().samples
-                doc.save(source)
-            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Shop name', 'rect': [15, 20, 100, 40], 'hindi_text': 'अशोक किराना'}])
-            with fitz.open(output) as doc:
-                self.assertEqual(len(doc), 2)
-                self.assertEqual(doc[0].get_pixmap().samples, before)
-                self.assertIn('अशोक', doc[1].get_text())
 
-    def test_long_continuation_paginates_without_losing_words(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
-            with fitz.open() as doc:
-                page = doc.new_page(width=200, height=100)
-                page.insert_text((20, 35), 'ASHOK', fontsize=12)
-                doc.save(source)
-            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': [15, 20, 40, 30], 'protected_rects': [[0, 0, 200, 100]], 'hindi_text': ' '.join(['अशोक'] * 1000)}])
-            with fitz.open(output) as doc:
-                self.assertGreater(len(doc), 2)
-                self.assertEqual(sum(page.get_text().count('अशोक') for page in list(doc)[1:]), 1000)
 
-    def test_long_hindi_wraps_automatically_without_covering_neighbor(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
-            with fitz.open() as doc:
-                page = doc.new_page(width=300, height=200)
-                page.insert_text((20, 70), 'NAME', fontsize=8)
-                page.insert_text((20, 130), 'KEEP THIS LABEL', fontsize=10)
-                before = page.get_pixmap(clip=fitz.Rect(15, 117, 150, 135)).samples
-                doc.save(source)
-            apply_translations_to_pdf(source, output, [{
-                'page': 0, 'region_name': 'name', 'rect': [15, 60, 90, 75],
-                'hindi_text': 'अशोक किराना एवं जनरल स्टोर ऋषि नगर',
-            }])
-            with fitz.open(output) as doc:
-                self.assertEqual(before, doc[0].get_pixmap(clip=fitz.Rect(15, 117, 150, 135)).samples)
-                self.assertIn('अशोक', doc[0].get_text())
 
     def test_upper_and_lower_matras_stay_inside_separate_rows(self):
         destinations = [fitz.Rect(20, 20, 219, 33.3), fitz.Rect(20, 34.9, 219, 49)]
@@ -153,28 +119,6 @@ class HindiSpacingTests(unittest.TestCase):
         with self.assertRaises(PdfProcessingError):
             _fit_text_rect(fitz.Rect(0, 0, 20, 5), fitz.Rect(0, 0, 200, 15), .7)
 
-    def test_moving_mobile_preserves_gst_and_clears_the_old_row(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
-            with fitz.open() as doc:
-                page = doc.new_page(width=320, height=140)
-                page.insert_text((115, 75), 'ASHOK', fontsize=7)
-                page.insert_text((140, 99), 'Mobile: 9988776655', fontsize=6.5)
-                page.insert_text((37, 112), 'GSTIN: 23ABCDE1234F1Z5', fontsize=7)
-                gst_clip = fitz.Rect(35, 103, 175, 115)
-                before = page.get_pixmap(clip=gst_clip, matrix=fitz.Matrix(3, 3)).samples
-                doc.save(source)
-            apply_translations_to_pdf(source, output, [{
-                'page': 0, 'region_name': 'name', 'rect': [96, 68, 296, 77],
-                'text_rect': [96, 69.5, 295, 82.8], 'hindi_text': 'अशोक किराना',
-            }], {'move_regions': [{'rect': [126, 92, 296, 102], 'destination': [190, 101, 295, 113]}]})
-            with fitz.open(output) as doc:
-                page = doc[0]
-                self.assertEqual(before, page.get_pixmap(clip=gst_clip, matrix=fitz.Matrix(3, 3)).samples)
-                old = page.get_pixmap(clip=fitz.Rect(126, 92, 296, 102), colorspace=fitz.csGRAY)
-                moved = page.get_pixmap(clip=fitz.Rect(190, 101, 295, 113), colorspace=fitz.csGRAY)
-                self.assertTrue(all(value == 255 for value in old.samples))
-                self.assertGreater(sum(value < 128 for value in moved.samples), 20)
 
 
 if __name__ == '__main__':

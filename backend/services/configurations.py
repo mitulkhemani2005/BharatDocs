@@ -127,24 +127,5 @@ def conversion_settings(owner, key):
 
 
 def conversion_regions(regions):
-    """Combine overlapping extraction windows only; never alter the saved area list."""
-    result = []
-    for item in regions:
-        region = dict(item)
-        if region.get("mode") == "preserve":
-            result.append(region)
-            continue
-        changed = True
-        while changed:
-            changed = False
-            for index, other in enumerate(result):
-                a, b = region["rect"], other["rect"]
-                if other.get("mode") == "preserve" or not (max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])):
-                    continue
-                region["rect"] = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
-                region["text_rect"] = None
-                result.pop(index)
-                changed = True
-                break
-        result.append(region)
-    return result
+    """Keep every selected boundary intact throughout extraction and rendering."""
+    return [dict(region) for region in regions]

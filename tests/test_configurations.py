@@ -106,7 +106,7 @@ class ConfigurationTests(unittest.TestCase):
             source = doc.tobytes()
         upload_id = self.client.post('/upload', files={'file': ('overlap.pdf', source, 'application/pdf')}).json()['upload_id']
         extracted = self.client.get('/extract-regions', params={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
-        self.assertEqual([item['text'] for item in extracted.json()['regions']], ['ASHOK'])
+        self.assertEqual([item['text'] for item in extracted.json()['regions']], ['ASHOK', '', ''])
         saved = self.client.get('/configurations', headers=self.headers).json()['configurations'][0]
         self.assertEqual([area['name'] for area in saved['regions']], ['Area 1', 'Area 2', 'Area 3'])
         self.assertEqual([area['rect'] for area in saved['regions']], [area['rect'] for area in layout['regions']])
@@ -157,7 +157,7 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(len(document), 2)
             for page, scale in zip(document, (1, 2)):
                 self.assertIn('KEEP', page.get_text())
-                placed = page.get_text(clip=fitz.Rect(10*scale, 45*scale, 180*scale, 65*scale))
+                placed = page.get_text(clip=fitz.Rect(10*scale, 10*scale, 180*scale, 40*scale))
                 self.assertIn('अशोक', placed)
 
     def test_empty_selection_fails_instead_of_returning_an_unchanged_pdf(self):
@@ -182,13 +182,13 @@ class ConfigurationTests(unittest.TestCase):
         preview = self.client.get('/pdf-page', params={'upload_id': upload_id}).json()
         self.assertEqual((preview['width'], preview['height']), (200, 300))
         layout = {**self.layout, 'page_width': 200, 'page_height': 300,
-                  'regions': [{'name': 'Rotated name', 'rect': [bounds[0]-1, bounds[1]-1, bounds[2]+1, bounds[3]+1], 'text_rect': [10, 120, 190, 150]}]}
+                  'regions': [{'name': 'Rotated name', 'rect': [110, 0, 200, 110], 'text_rect': [10, 120, 190, 150]}]}
         created = self.client.post('/configurations', json=layout, headers=self.headers)
         self.assertEqual(created.status_code, 201, created.text)
         result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': created.json()['id']}, headers=self.headers)
         self.assertEqual(result.status_code, 200)
         with fitz.open(stream=result.content, filetype='pdf') as document:
-            self.assertIn('अशोक', document[0].get_text(clip=fitz.Rect(10, 120, 190, 150)))
+            self.assertIn('अशोक', document[0].get_text(clip=fitz.Rect(110, 0, 200, 110)))
 
 
 if __name__ == '__main__':

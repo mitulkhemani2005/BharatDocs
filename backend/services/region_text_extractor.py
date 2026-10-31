@@ -25,6 +25,7 @@ def extract_text_from_regions(pdf_path, regions):
                                 region[key] = [v * (sx if i % 2 == 0 else sy) for i, v in enumerate(region[key])]
                     scaled.append(region)
                 protected = [fitz.Rect(r["rect"]) for r in scaled if r.get("mode") == "preserve"]
+                seen = set()
                 for region in scaled:
                     if region.get("mode") == "preserve":
                         continue
@@ -38,7 +39,15 @@ def extract_text_from_regions(pdf_path, regions):
                                 continue
                             for line in block.get("lines", []):
                                 for span in line.get("spans", []):
-                                    text = "".join(char["c"] if not any(fitz.Rect(char["bbox"]).intersects(mask) for mask in protected) else " " for char in span.get("chars", [])).strip()
+                                    chars = []
+                                    for char in span.get("chars", []):
+                                        key = (char["c"], *char["bbox"])
+                                        if key in seen or any(fitz.Rect(char["bbox"]).intersects(mask) for mask in protected):
+                                            chars.append(" ")
+                                        else:
+                                            chars.append(char["c"])
+                                            seen.add(key)
+                                    text = "".join(chars).strip()
                                     if text:
                                         spans.append((span["bbox"][1], span["bbox"][0], text))
                         spans.sort(key=lambda item: (item[0], item[1]))
