@@ -1,0 +1,115 @@
+import io
+import tempfile
+import unittest
+import uuid
+from pathlib import Path
+from unittest.mock import patch
+
+import fitz
+from fastapi.testclient import TestClient
+
+from backend.main import app
+
+
+class ConfigurationTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        root = Path(self.temporary.name)
+        self.patches = [patch('backend.services.configurations.user_documents_root', return_value=root)]
+        for constant, folder in [('UPLOAD_FOLDER', 'Work'), ('INPUT_FOLDER', 'Input'), ('OUTPUT_FOLDER', 'Output')]:
+            path = root / folder
+            path.mkdir()
+            self.patches.append(patch(f'backend.api.routes.{constant}', path))
+        for replacement in self.patches:
+            replacement.start()
+        self.client = TestClient(app)
+        self.headers = {'X-Configuration-Owner': str(uuid.uuid4())}
+        self.layout = {'name': 'Shop bills', 'page_width': 300, 'page_height': 200, 'font_size': 14,
+                       'regions': [{'name': 'Shop name', 'rect': [10, 10, 180, 40], 'text_rect': [10, 45, 180, 65]}]}
+
+    def tearDown(self):
+        self.client.close()
+        for replacement in reversed(self.patches):
+            replacement.stop()
+        self.temporary.cleanup()
+
+    def test_saved_layout_crud_is_persistent_and_scoped_to_owner(self):
+        created = self.client.post('/configurations', json=self.layout, headers=self.headers)
+        self.assertEqual(created.status_code, 201, created.text)
+        key = created.json()['id']
+        with TestClient(app) as another_client:
+            self.assertEqual(another_client.get('/configurations', headers=self.headers).json()['configurations'][0]['id'], key)
+        stranger = {'X-Configuration-Owner': str(uuid.uuid4())}
+        self.assertEqual(self.client.get('/configurations', headers=stranger).json()['configurations'], [])
+        self.assertEqual(self.client.delete(f'/configurations/{key}', headers=stranger).status_code, 404)
+        self.assertEqual(self.client.put(f'/configurations/{key}', json=self.layout, headers=stranger).status_code, 404)
+        changed = {**self.layout, 'name': 'Updated bill'}
+        self.assertEqual(self.client.put(f'/configurations/{key}', json=changed, headers=self.headers).json()['name'], 'Updated bill')
+        self.assertEqual(self.client.delete(f'/configurations/{key}', headers=self.headers).status_code, 200)
+        self.assertEqual(self.client.get('/configurations', headers=self.headers).json()['configurations'], [])
+
+    def test_rejects_invalid_and_overlapping_areas(self):
+        self.assertEqual(self.client.get('/configurations').status_code, 400)
+        for regions in ([{'name': 'Outside', 'rect': [0, 0, 301, 40]}],
+                        [{'name': 'Backwards', 'rect': [100, 10, 20, 40]}],
+                        self.layout['regions'] + [{'name': 'Overlap', 'rect': [20, 20, 50, 40]}]):
+            response = self.client.post('/configurations', json={**self.layout, 'regions': regions}, headers=self.headers)
+            self.assertEqual(response.status_code, 400, response.text)
+
+    def test_preview_and_selected_layout_convert_every_page_at_scaled_coordinates(self):
+        with fitz.open() as document:
+            for scale in (1, 2):
+                page = document.new_page(width=300 * scale, height=200 * scale)
+                page.insert_text((20 * scale, 30 * scale), 'ASHOK', fontsize=12 * scale)
+                page.insert_text((20 * scale, 100 * scale), 'KEEP', fontsize=12 * scale)
+            source = document.tobytes()
+        uploaded = self.client.post('/upload', files={'file': ('sample.pdf', io.BytesIO(source), 'application/pdf')}).json()
+        upload_id = uploaded['upload_id']
+        preview = self.client.get('/pdf-page', params={'upload_id': upload_id, 'page': 2})
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual((preview.json()['width'], preview.json()['height']), (600, 400))
+        self.assertTrue(preview.json()['image'].startswith('data:image/png;base64,iVBOR'))
+        self.assertEqual(self.client.get('/pdf-page', params={'upload_id': upload_id, 'page': 3}).status_code, 400)
+        key = self.client.post('/configurations', json=self.layout, headers=self.headers).json()['id']
+        result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+        self.assertEqual(result.status_code, 200, result.text if result.status_code != 200 else '')
+        with fitz.open(stream=result.content, filetype='pdf') as document:
+            self.assertEqual(len(document), 2)
+            for page, scale in zip(document, (1, 2)):
+                self.assertIn('KEEP', page.get_text())
+                placed = page.get_text(clip=fitz.Rect(10*scale, 45*scale, 180*scale, 65*scale))
+                self.assertIn('अशोक', placed)
+
+    def test_empty_selection_fails_instead_of_returning_an_unchanged_pdf(self):
+        with fitz.open() as document:
+            document.new_page(width=300, height=200).insert_text((20, 100), 'Outside selection')
+            source = document.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('empty-area.pdf', source, 'application/pdf')}).json()['upload_id']
+        key = self.client.post('/configurations', json=self.layout, headers=self.headers).json()['id']
+        result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+        self.assertEqual(result.status_code, 422)
+        self.assertIn('No selectable text', result.json()['error'])
+
+    def test_rotated_page_preview_and_translation_share_visible_coordinates(self):
+        with fitz.open() as document:
+            page = document.new_page(width=300, height=200)
+            page.insert_text((20, 30), 'ASHOK', fontsize=12)
+            page.set_rotation(90)
+            source = document.tobytes()
+            page.remove_rotation()
+            bounds = page.get_text('blocks')[0][:4]
+        upload_id = self.client.post('/upload', files={'file': ('rotated.pdf', source, 'application/pdf')}).json()['upload_id']
+        preview = self.client.get('/pdf-page', params={'upload_id': upload_id}).json()
+        self.assertEqual((preview['width'], preview['height']), (200, 300))
+        layout = {**self.layout, 'page_width': 200, 'page_height': 300,
+                  'regions': [{'name': 'Rotated name', 'rect': [bounds[0]-1, bounds[1]-1, bounds[2]+1, bounds[3]+1], 'text_rect': [10, 120, 190, 150]}]}
+        created = self.client.post('/configurations', json=layout, headers=self.headers)
+        self.assertEqual(created.status_code, 201, created.text)
+        result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': created.json()['id']}, headers=self.headers)
+        self.assertEqual(result.status_code, 200)
+        with fitz.open(stream=result.content, filetype='pdf') as document:
+            self.assertIn('अशोक', document[0].get_text(clip=fitz.Rect(10, 120, 190, 150)))
+
+
+if __name__ == '__main__':
+    unittest.main()

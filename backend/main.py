@@ -11,8 +11,9 @@ from fastapi.responses import JSONResponse
 from starlette.status import HTTP_400_BAD_REQUEST
 from starlette.middleware.cors import CORSMiddleware
 
-from backend.api.routes import APIError, router
+from backend.api.routes import router
 from backend.core.asyncio_errors import windows_disconnect_handler
+from backend.core.errors import APIError
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -60,7 +61,7 @@ async def handle_request_validation(_request: Request, error: RequestValidationE
     message = (
         "Choose a PDF file to upload."
         if missing_file
-        else "The upload session details are invalid. Please upload the PDF again."
+        else str(errors[0].get("msg", "Check the submitted settings."))
     )
     return JSONResponse({"error": message}, status_code=HTTP_400_BAD_REQUEST)
 

@@ -17,7 +17,8 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { uploadAndTranslatePdf, type HindiFont } from "@/lib/api-client"
+import { configurationRequest, uploadAndTranslatePdf, type Configuration, type HindiFont } from "@/lib/api-client"
+import ConfigurationEditor from "@/components/configuration-editor"
 import { legalHref } from "@/lib/legal-links"
 
 type Status = "idle" | "uploading" | "processing" | "complete"
@@ -35,8 +36,31 @@ export default function BharatDocsApp() {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [configurations, setConfigurations] = useState<Configuration[]>([])
+  const [configurationId, setConfigurationId] = useState("")
+  const [editor, setEditor] = useState<{ configuration: Configuration | null } | null>(null)
+  const [configurationError, setConfigurationError] = useState("")
+  const [configurationsLoading, setConfigurationsLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const loadConfigurations = () => {
+    setConfigurationsLoading(true)
+    setConfigurationError("")
+    configurationRequest<{ configurations: Configuration[] }>("/configurations")
+      .then(result => {
+        setConfigurations(result.configurations)
+        const saved = localStorage.getItem("bharatdocs-selected-configuration")
+        setConfigurationId(result.configurations.some(item => item.id === saved) ? saved! : "")
+      })
+      .catch(caught => setConfigurationError(caught.message))
+      .finally(() => setConfigurationsLoading(false))
+  }
+  useEffect(loadConfigurations, [])
+  const chooseConfiguration = (id: string) => {
+    setConfigurationId(id)
+    localStorage.setItem("bharatdocs-selected-configuration", id)
+  }
 
   useEffect(() => {
     if (!previewUrl) return
@@ -62,7 +86,7 @@ export default function BharatDocsApp() {
     setStatus("uploading")
 
     try {
-      const blob = await uploadAndTranslatePdf(file, fontFamily, () => setStatus("processing"))
+      const blob = await uploadAndTranslatePdf(file, fontFamily, () => setStatus("processing"), configurationId)
       setTranslatedBlob(blob)
       setStatus("complete")
     } catch (caughtError) {
@@ -178,6 +202,20 @@ export default function BharatDocsApp() {
               className={`mt-8 rounded-2xl border bg-white p-5 transition sm:p-6 ${isDragging ? "border-[#17365d] ring-4 ring-slate-100" : "border-slate-200 shadow-sm"}`}
               aria-live="polite"
             >
+              <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
+                <label className="grid gap-2 text-sm font-semibold" htmlFor="configuration-select">Translation configuration
+                  <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); handleReset() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
+                    <option value="">Original bill layout (built in)</option>
+                    {configurations.map(configuration => <option key={configuration.id} value={configuration.id}>{configuration.name}</option>)}
+                  </select>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" disabled={isBusy || configurationsLoading || !!configurationError} onClick={() => setEditor({ configuration: null })}>New configuration</Button>
+                  {configurationId && <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setEditor({ configuration: configurations.find(item => item.id === configurationId) || null })}>Edit / delete</Button>}
+                </div>
+                <p className="text-xs leading-5 text-slate-500">Saved areas apply to every page. Create a configuration to select areas on your own PDF.</p>
+                {configurationError && <p role="alert" className="text-xs text-red-700">{configurationError} <button onClick={loadConfigurations} className="underline">Retry loading configurations</button></p>}
+              </div>
               {status === "idle" && !isDesktopApp && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl bg-slate-50 px-3.5 py-3">
                   <input
@@ -338,6 +376,17 @@ export default function BharatDocsApp() {
           </section>
         </div>
       )}
+      {editor && <ConfigurationEditor configuration={editor.configuration} canUpload={isDesktopApp || hasAcceptedTerms} onClose={() => setEditor(null)} onSaved={saved => {
+        setConfigurations(previous => [saved, ...previous.filter(item => item.id !== saved.id)])
+        chooseConfiguration(saved.id)
+        setEditor(null)
+        handleReset()
+      }} onDeleted={id => {
+        setConfigurations(previous => previous.filter(item => item.id !== id))
+        if (configurationId === id) chooseConfiguration("")
+        setEditor(null)
+        handleReset()
+      }} />}
     </main>
   )
 }

@@ -12,7 +12,16 @@ def extract_text_from_regions(pdf_path, regions):
                 raise PdfValidationError("This PDF is password protected. Remove the password and upload it again.")
 
             for page_index, page in enumerate(doc):
+                if page.rotation:
+                    page.remove_rotation()
                 for region in regions:
+                    region = dict(region)
+                    if region.get("page_size"):
+                        width, height = region["page_size"]
+                        sx, sy = page.rect.width / width, page.rect.height / height
+                        for key in ("rect", "text_rect"):
+                            if region.get(key):
+                                region[key] = [v * (sx if i % 2 == 0 else sy) for i, v in enumerate(region[key])]
                     area = fitz.Rect(region["rect"]) & page.rect
                     collected = []
                     if not area.is_empty:

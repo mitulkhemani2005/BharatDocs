@@ -117,7 +117,7 @@ def _prepare_hindi_text(document, text, font_size, css, archive):
 def _fit_text_rect(destination, ink, minimum_scale):
     scale = min(1, destination.width / ink.width, destination.height / ink.height)
     if scale < minimum_scale:
-        raise PdfProcessingError("Hindi text needs more space to keep its matras readable. Enlarge its text_rect in config.json.")
+        raise PdfProcessingError("Hindi text needs more space to keep its matras readable. Edit the configuration and enlarge the Hindi placement area.")
     width, height = ink.width * scale, ink.height * scale
     x = destination.x0 + (destination.width - width) / 2
     y = destination.y0 + (destination.height - height) / 2
@@ -165,6 +165,10 @@ def apply_translations_to_pdf(
 
     try:
         with fitz.open(input_pdf_path) as doc, fitz.open(input_pdf_path) as original, fitz.open() as text_doc:
+            for document in (doc, original):
+                for page in document:
+                    if page.rotation:
+                        page.remove_rotation()
             prepared = {}
             if doc.needs_pass or doc.is_encrypted:
                 raise PdfProcessingError("Password-protected PDFs cannot be translated.")

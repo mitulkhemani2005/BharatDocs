@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import base64
 import math
 import re
 import shutil
@@ -9,12 +10,15 @@ import uuid
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, File, UploadFile
+import fitz
+from fastapi import APIRouter, File, UploadFile, Header, Query
 from pydantic import BaseModel, ConfigDict
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from backend.core.config import load_config
+from backend.core.errors import APIError
+from backend.services import configurations
 from backend.core.paths import resource_root, user_documents_root
 from backend.services.pdf_modifier import PdfProcessingError, apply_translations_to_pdf
 from backend.services.pdf_reader import PdfValidationError, get_pdf_info
@@ -39,17 +43,11 @@ for folder in (UPLOAD_FOLDER, INPUT_FOLDER, OUTPUT_FOLDER):
     folder.mkdir(parents=True, exist_ok=True)
 
 
-class APIError(Exception):
-    def __init__(self, message: str, status_code: int):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
-
-
 class TranslatePDFRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     upload_id: str
+    configuration_id: str | None = None
     font_family: Literal["Noto Sans Devanagari"] | None = None
 
 
@@ -76,9 +74,9 @@ def get_uploaded_pdf(upload_id: str | None) -> tuple[Path, Path]:
     return job_dir, pdf_path
 
 
-def get_regions_and_options() -> tuple[list[dict], dict]:
+def get_regions_and_options(configuration_id=None, owner=None) -> tuple[list[dict], dict]:
     try:
-        config = load_config(CONFIG_PATH)
+        config = configurations.conversion_settings(owner, configuration_id) if configuration_id else load_config(CONFIG_PATH)
     except (OSError, ValueError) as error:
         logger.exception("Could not read the PDF conversion configuration")
         raise APIError("The PDF conversion settings could not be loaded.", 500) from error
@@ -207,10 +205,47 @@ def verify_pdf(upload_id: str | None = None):
     return {"message": "PDF is ready to translate.", **info}
 
 
+@router.get("/pdf-page")
+def pdf_page(upload_id: str, page: int = Query(default=1, ge=1, le=MAX_PDF_PAGES)):
+    _, path = get_uploaded_pdf(upload_id)
+    with fitz.open(path) as document:
+        if page > len(document):
+            raise APIError("This page does not exist in the PDF.", 400)
+        source = document[page - 1]
+        if source.rotation:
+            # Preview and extraction both use the visible, upright page coordinates.
+            source.remove_rotation()
+        scale = min(2, 1600 / max(source.rect.width, source.rect.height))
+        image = source.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        return {"page": page, "page_count": len(document), "width": source.rect.width,
+                "height": source.rect.height, "image": "data:image/png;base64," + base64.b64encode(image.tobytes("png")).decode("ascii")}
+
+
+@router.get("/configurations")
+def list_configurations(x_configuration_owner: str | None = Header(default=None)):
+    return {"configurations": configurations.list_layouts(x_configuration_owner)}
+
+
+@router.post("/configurations", status_code=201)
+def create_configuration(payload: configurations.Layout, x_configuration_owner: str | None = Header(default=None)):
+    return configurations.save_layout(x_configuration_owner, payload)
+
+
+@router.put("/configurations/{configuration_id}")
+def update_configuration(configuration_id: str, payload: configurations.Layout, x_configuration_owner: str | None = Header(default=None)):
+    return configurations.save_layout(x_configuration_owner, payload, configuration_id)
+
+
+@router.delete("/configurations/{configuration_id}")
+def delete_configuration(configuration_id: str, x_configuration_owner: str | None = Header(default=None)):
+    configurations.delete_layout(x_configuration_owner, configuration_id)
+    return {"message": "Configuration deleted."}
+
+
 @router.get("/extract-regions")
-def extract_regions(upload_id: str | None = None):
+def extract_regions(upload_id: str | None = None, configuration_id: str | None = None, x_configuration_owner: str | None = Header(default=None)):
     _, pdf_path = get_uploaded_pdf(upload_id)
-    regions, _ = get_regions_and_options()
+    regions, _ = get_regions_and_options(configuration_id, x_configuration_owner)
     try:
         extracted = extract_text_from_regions(pdf_path, regions)
     except PdfValidationError as error:
@@ -219,11 +254,13 @@ def extract_regions(upload_id: str | None = None):
 
 
 @router.get("/translate-regions")
-def translate_regions_api(upload_id: str | None = None):
+def translate_regions_api(upload_id: str | None = None, configuration_id: str | None = None, x_configuration_owner: str | None = Header(default=None)):
     _, pdf_path = get_uploaded_pdf(upload_id)
-    regions, _ = get_regions_and_options()
+    regions, _ = get_regions_and_options(configuration_id, x_configuration_owner)
     try:
         extracted = extract_text_from_regions(pdf_path, regions)
+        if not any(region["text"].strip() for region in extracted):
+            raise APIError("No selectable text was found in these areas. Edit the configuration and select the English text. Scanned PDFs need OCR first.", 422)
         translated = translate_regions(extracted)
     except PdfValidationError as error:
         raise APIError(str(error), 422) from error
@@ -233,13 +270,13 @@ def translate_regions_api(upload_id: str | None = None):
 
 
 @router.post("/translate-pdf")
-def translate_pdf(payload: TranslatePDFRequest):
+def translate_pdf(payload: TranslatePDFRequest, x_configuration_owner: str | None = Header(default=None)):
     job_dir, pdf_path = get_uploaded_pdf(payload.upload_id)
     job_id = uuid.UUID(str(payload.upload_id))
     source_name = (job_dir / "filename.txt").read_text(encoding="utf-8").strip() or "document.pdf"
     output_filename = f"Hindi_{job_id.hex[:8]}_{source_name}"
     output_path = OUTPUT_FOLDER / output_filename
-    regions, text_options = get_regions_and_options()
+    regions, text_options = get_regions_and_options(payload.configuration_id, x_configuration_owner)
     if payload.font_family:
         text_options["font_family"] = payload.font_family
 
@@ -248,6 +285,8 @@ def translate_pdf(payload: TranslatePDFRequest):
         if info["page_count"] > MAX_PDF_PAGES:
             raise APIError(f"This PDF has more than {MAX_PDF_PAGES} pages.", 413)
         extracted = extract_text_from_regions(pdf_path, regions)
+        if not any(region["text"].strip() for region in extracted):
+            raise APIError("No selectable text was found in these areas. Edit the configuration and select the English text. Scanned PDFs need OCR first.", 422)
         translated = translate_regions(extracted)
         apply_translations_to_pdf(
             input_pdf_path=pdf_path,

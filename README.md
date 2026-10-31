@@ -74,12 +74,25 @@ Docker deployment files are provided for the API and web client. See [DEPLOYMENT
 
 ## Repository automation
 
+- Install `requirements-dev.txt` to run the backend tests locally; it includes the HTTP client used by the API tests.
 - GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
 - Pushing a version tag such as `v1.0.4` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
 - The release workflow expects the tag version to match `desktop/package.json`.
 - Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
 
 ## Configure PDF regions
+
+Use **New configuration** next to the configuration selector to create a reusable layout:
+
+1. Enter a name and choose an original English PDF as a reference.
+2. Select any reference page, then drag rectangles around the English fields to translate.
+3. Select an area in the list to rename, redraw, or delete it. Use **Draw Hindi placement area** to leave extra room for matras or shift Hindi away from nearby labels.
+4. Save the configuration, select it on the main screen, and upload a PDF to translate. The areas repeat on every page and scale proportionally with page size.
+5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy. The built-in original bill layout remains available.
+
+Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
+
+The editor uses selectable PDF text, not OCR. Keep fields on separate lines in separate areas, and leave enough space for Hindi placement. Same-type rectangles cannot overlap. The last selected configuration is remembered in the browser.
 
 Edit `config.json` to change the source rectangles translated on every page. Coordinates use PDF points in `[x0, y0, x1, y1]` order. A region may use `text_rect` to set a separate Hindi destination rectangle. The `pdf_text` section controls typography; `config_examples/second-bill.json` is an optional alternate layout.
 
@@ -96,6 +109,11 @@ Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is dis
 | `GET` | `/extract-regions?upload_id=...` | Extract configured text |
 | `GET` | `/translate-regions?upload_id=...` | Translate configured text as JSON |
 | `POST` | `/translate-pdf` | Create and return a translated PDF |
+| `GET` | `/pdf-page?upload_id=...&page=1` | Render a reference page for drawing areas |
+| `GET`, `POST` | `/configurations` | List or create saved configurations |
+| `PUT`, `DELETE` | `/configurations/{id}` | Update or delete a saved configuration |
+
+Configuration requests use the `X-Configuration-Owner` UUID header. Pass `configuration_id` in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header to use a saved layout. Omit it to use the bundled layout. Custom layouts do not inherit bill-specific Mobile/GST movement rules from the bundled layout.
 
 Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
 
