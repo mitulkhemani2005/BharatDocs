@@ -226,7 +226,6 @@ export default function BharatDocsApp() {
               aria-live="polite"
             >
               {uploadId && <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
-                <p className="truncate rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">PDF uploaded: {selectedFile?.name}</p>
                 <label className="grid gap-2 text-sm font-semibold" htmlFor="configuration-select">Translation configuration
                   <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); resetResult() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
                     <option value="" disabled>Select a configuration</option>
@@ -313,6 +312,7 @@ export default function BharatDocsApp() {
                       <Upload className="size-5" aria-hidden="true" />
                     </span>
                     <span className="mt-4 text-base font-semibold text-slate-900">{uploadId ? "Choose a different PDF" : "Choose a PDF to translate"}</span>
+                    {uploadId && <span className="mt-2 block max-w-full truncate text-sm font-medium text-[#17365d]" title={selectedFile?.name}>{selectedFile?.name}</span>}
                     <span className="mt-1 text-sm text-slate-500">Drop it here or <span className="font-medium text-[#17365d] underline underline-offset-2">browse files</span></span>
                     <span className="mt-4 text-xs text-slate-500">PDF only · Up to 20 MB</span>
                     <input
