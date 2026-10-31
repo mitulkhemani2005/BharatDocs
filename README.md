@@ -2,7 +2,7 @@
 
 **Offline English-to-Hindi PDF field translation for Windows and the web.**
 
-[Download the Windows installer (v1.0.4)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v1.0.4/BharatDocs-Setup-1.0.4.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v1.0.4) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
+[Download the Windows installer (v2.0.0)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.0/BharatDocs-Setup-2.0.0.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.0) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
 
 [![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml)
 
@@ -76,7 +76,7 @@ Docker deployment files are provided for the API and web client. See [DEPLOYMENT
 
 - Install `requirements-dev.txt` to run the backend tests locally; it includes the HTTP client used by the API tests.
 - GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
-- Pushing a version tag such as `v1.0.4` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
+- Pushing a version tag such as `v2.0.0` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
 - The release workflow expects the tag version to match `desktop/package.json`.
 - Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
 
