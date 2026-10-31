@@ -15,13 +15,13 @@ import json
 
 
 class ConfigurationTests(unittest.TestCase):
-    def test_old_small_font_layout_is_upgraded_when_loaded(self):
+    def test_user_selected_font_size_is_preserved_when_loaded(self):
         key = str(uuid.uuid4())
         old = {**self.layout, 'font_size': 10}
         with database() as connection:
             connection.execute('INSERT INTO layouts VALUES (?, ?, ?)', (key, self.headers['X-Configuration-Owner'], json.dumps(old)))
         loaded = self.client.get('/configurations', headers=self.headers).json()['configurations'][0]
-        self.assertEqual(loaded['font_size'], 18)
+        self.assertEqual(loaded['font_size'], 10)
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

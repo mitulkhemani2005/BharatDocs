@@ -26,7 +26,7 @@ class Layout(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     page_width: float = Field(gt=0, le=14400)
     page_height: float = Field(gt=0, le=14400)
-    font_size: float = Field(default=18, ge=18, le=32)
+    font_size: float = Field(default=18, ge=8, le=32)
     regions: list[Region] = Field(min_length=1, max_length=32)
 
     @model_validator(mode="after")
@@ -80,8 +80,7 @@ def list_layouts(owner):
 
 def _read_layout(data):
     layout = json.loads(data)
-    # Upgrade older small-font layouts when opened; the next save persists it.
-    layout["font_size"] = max(18, layout.get("font_size", 18))
+    layout.setdefault("font_size", 18)
     return layout
 
 

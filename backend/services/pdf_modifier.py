@@ -195,7 +195,7 @@ def _automatic_destination(page, seed, blockers, font_size):
     return max(pieces, key=lambda rect: rect.get_area())
 
 
-def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=False, scale_floor=.95):
+def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=False):
     """Retry the entire group so a tight field can borrow unused neighboring space."""
     group = fitz.Rect(seeds[0])
     for seed in seeds[1:]:
@@ -236,9 +236,9 @@ def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistrib
                         # path; failing a single shaping attempt must not abort it.
                         continue
                     scale = min(1, destination.width / ink.width, destination.height / ink.height)
-                    if scale + 1e-6 < scale_floor:
+                    if scale < 1:
                         continue
-                    fitted = _fit_text_rect(destination, ink, scale_floor - 1e-6)
+                    fitted = _fit_text_rect(destination, ink, 1)
                     target_y = min(max((seeds[index].y0 + seeds[index].y1 - fitted.height) / 2, destination.y0), destination.y1 - fitted.height)
                     dy = target_y - fitted.y0
                     fitted += (0, dy, 0, dy)
@@ -377,14 +377,8 @@ def apply_translations_to_pdf(
                     try:
                         page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=True)
                     except LayoutSpaceError:
-                        try:
-                            # Reduce size only after trying shared space at the preferred
-                            # size. Keep compact bill text at least 12pt (or its explicit
-                            # smaller size for legacy engine callers).
-                            page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=True, scale_floor=min(1, 12 / font_size))
-                        except LayoutSpaceError:
-                            overflow[page_index] = regions
-                            continue
+                        overflow[page_index] = regions
+                        continue
                 plans.update({(page_index, index): placement for index, placement in page_plan.items()})
 
             # Finish shaping every continuation page before importing text_doc resources.
