@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import random
 from pathlib import Path
 
 import fitz
@@ -7,11 +8,25 @@ import fitz
 from backend.services.pdf_modifier import (
     FONT_DIRECTORY, PdfProcessingError, _fit_text_rect, _font_css,
     _prepare_hindi_text, _source_clear_rect,
-    apply_translations_to_pdf,
+    apply_translations_to_pdf, _subtract_rectangles,
 )
 
 
 class HindiSpacingTests(unittest.TestCase):
+    def test_fast_clipping_preserves_exact_unmasked_coverage(self):
+        rng = random.Random(42)
+        for _ in range(40):
+            masks = []
+            for _ in range(8):
+                x, y = rng.randint(-5, 20), rng.randint(-5, 20)
+                masks.append(fitz.Rect(x, y, x + rng.randint(1, 10), y + rng.randint(1, 10)))
+            pieces = _subtract_rectangles(fitz.Rect(0, 0, 20, 20), masks + masks)
+            expected = sum(not any((x + .5, y + .5) in mask for mask in masks) for x in range(20) for y in range(20))
+            self.assertEqual(sum(rect.get_area() for rect in pieces), expected)
+            for i, first in enumerate(pieces):
+                for second in pieces[i + 1:]:
+                    self.assertFalse(first.intersects(second))
+
     def test_crowded_fields_borrow_shared_space_without_a_continuation(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'

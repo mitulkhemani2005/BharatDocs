@@ -154,22 +154,29 @@ def _layout_moves(options):
 
 
 def _subtract_rectangles(rectangle, masks):
-    pieces = [fitz.Rect(rectangle)]
-    for mask in masks:
+    # Most invoice objects are nowhere near this field. Clip using plain numbers
+    # and discard irrelevant/duplicate obstacles before creating any PDF objects.
+    x0, y0, x1, y1 = rectangle
+    pieces = [(x0, y0, x1, y1)]
+    relevant = set()
+    for mx0, my0, mx1, my1 in masks:
+        if mx0 < x1 and mx1 > x0 and my0 < y1 and my1 > y0:
+            relevant.add((max(mx0, x0), max(my0, y0), min(mx1, x1), min(my1, y1)))
+    for mx0, my0, mx1, my1 in sorted(relevant):
         remaining = []
-        for rect in pieces:
-            overlap = rect & mask
-            if overlap.is_empty:
-                remaining.append(rect)
+        for px0, py0, px1, py1 in pieces:
+            ox0, oy0, ox1, oy1 = max(px0, mx0), max(py0, my0), min(px1, mx1), min(py1, my1)
+            if ox0 >= ox1 or oy0 >= oy1:
+                remaining.append((px0, py0, px1, py1))
                 continue
             remaining.extend(part for part in (
-                fitz.Rect(rect.x0, rect.y0, rect.x1, overlap.y0),
-                fitz.Rect(rect.x0, overlap.y1, rect.x1, rect.y1),
-                fitz.Rect(rect.x0, overlap.y0, overlap.x0, overlap.y1),
-                fitz.Rect(overlap.x1, overlap.y0, rect.x1, overlap.y1),
-            ) if not part.is_empty)
+                (px0, py0, px1, oy0), (px0, oy1, px1, py1),
+                (px0, oy0, ox0, oy1), (ox1, oy0, px1, oy1),
+            ) if part[0] < part[2] and part[1] < part[3])
         pieces = remaining
-    return pieces
+        if not pieces:
+            break
+    return [fitz.Rect(part) for part in pieces]
 
 
 def _automatic_destination(page, seed, blockers, font_size):
@@ -197,6 +204,7 @@ def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistrib
     orders = [list(range(len(regions)))]
     if redistribute:
         orders = [sorted(orders[0], key=lambda i: seeds[i].get_area() / max(1, len(regions[i][1]))), orders[0], list(reversed(orders[0]))]
+    orders = list(dict.fromkeys(tuple(order) for order in orders))
     for order in orders:
         placed, result = [], {}
         for index in order:
@@ -215,6 +223,7 @@ def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistrib
                 destinations += _subtract_rectangles(group, blockers)
                 destinations = sorted(destinations, key=lambda rect: rect.get_area(), reverse=True)[:24]
             candidates = []
+            ideal_fit = False
             for destination in destinations:
                 if destination.width < 8 or destination.height < 8:
                     continue
@@ -247,7 +256,10 @@ def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistrib
                     distance = math.hypot(fitted.x0 - seeds[index].x0, fitted.y0 - seeds[index].y0)
                     candidates.append((scale - distance / max(1, page.rect.width + page.rect.height) * .15, number, ink, fitted))
                     if scale >= .95:
+                        ideal_fit = True
                         break
+                if ideal_fit:
+                    break
             if not candidates:
                 break
             _, number, ink, fitted = max(candidates, key=lambda item: item[0])
@@ -323,11 +335,18 @@ def apply_translations_to_pdf(
             clear_masks = {}
             overflow = {}
             continuation_plans = []
+            failed_shapes = set()
 
             def prepare(text, width=None):
                 key = (text, width)
+                if key in failed_shapes:
+                    raise LayoutSpaceError("This shaping width has already been tried.")
                 if key not in prepared:
-                    prepared[key] = _prepare_hindi_text(text_doc, text, font_size, css, archive, width)
+                    try:
+                        prepared[key] = _prepare_hindi_text(text_doc, text, font_size, css, archive, width)
+                    except PdfProcessingError:
+                        failed_shapes.add(key)
+                        raise
                 return prepared[key]
 
             for page_index, regions in page_regions.items():
