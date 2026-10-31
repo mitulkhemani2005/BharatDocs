@@ -30,6 +30,7 @@ export default function BharatDocsApp() {
   const [status, setStatus] = useState<Status>("idle")
   const fontFamily: HindiFont = "Noto Sans Devanagari"
   const [uploadId, setUploadId] = useState<string | null>(null)
+  const [pageCount, setPageCount] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -131,6 +132,7 @@ export default function BharatDocsApp() {
     try {
       const uploaded = await uploadPdf(file)
       setUploadId(uploaded.upload_id)
+      setPageCount(uploaded.page_count)
       setStatus("ready")
     } catch (caught) {
       setStatus("idle")
@@ -306,20 +308,47 @@ export default function BharatDocsApp() {
                 <>
                   <label
                     htmlFor="pdf-upload"
-                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${canUpload ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
+                    className={`group block overflow-hidden rounded-2xl border transition duration-200 has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-blue-100 ${canUpload ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-blue-500 bg-blue-50 ring-4 ring-blue-100" : uploadId ? "border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md" : "border-dashed border-slate-300 bg-slate-50/60 hover:border-[#17365d] hover:bg-slate-50"}`}
                   >
-                    <span className="grid size-12 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
-                      <Upload className="size-5" aria-hidden="true" />
-                    </span>
-                    <span className="mt-4 text-base font-semibold text-slate-900">{uploadId ? "Choose a different PDF" : "Choose a PDF to translate"}</span>
-                    {uploadId && <span className="mt-2 block max-w-full truncate text-sm font-medium text-[#17365d]" title={selectedFile?.name}>{selectedFile?.name}</span>}
-                    <span className="mt-1 text-sm text-slate-500">Drop it here or <span className="font-medium text-[#17365d] underline underline-offset-2">browse files</span></span>
-                    <span className="mt-4 text-xs text-slate-500">PDF only · Up to 20 MB</span>
+                    {uploadId && selectedFile ? (
+                      <>
+                        <span className="flex items-center justify-between gap-3 px-5 pt-5">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Your document</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 className="size-3.5" aria-hidden="true" /> Added</span>
+                        </span>
+                        <span className="flex min-w-0 items-center gap-4 px-5 pb-5 pt-4">
+                          <span className="relative grid h-16 w-14 shrink-0 place-items-center rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 text-[#17365d] shadow-sm">
+                            <FileText className="size-7" strokeWidth={1.5} aria-hidden="true" />
+                            <span className="absolute -bottom-1.5 rounded bg-[#17365d] px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-white">PDF</span>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[16px] font-semibold tracking-tight text-slate-900" title={selectedFile.name}>{selectedFile.name}</span>
+                            <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                              <span>{selectedFile.size < 1024 * 1024 ? `${Math.max(1, Math.round(selectedFile.size / 1024))} KB` : `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`}</span>
+                              {pageCount > 0 && <><span aria-hidden="true" className="text-slate-300">•</span><span>{pageCount} {pageCount === 1 ? "page" : "pages"}</span></>}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5">
+                          <span className="text-xs leading-5 text-slate-500">{isDragging ? "Drop to replace this document" : "Drop another PDF here to replace it"}</span>
+                          <span className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#17365d] shadow-sm transition group-hover:border-slate-300 group-hover:bg-slate-50"><RotateCcw className="size-3.5" aria-hidden="true" /> Change PDF</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span className="flex flex-col items-center px-5 py-8 text-center sm:py-9">
+                        <span className="mb-4 grid size-14 place-items-center rounded-2xl border border-white bg-white text-[#17365d] shadow-sm ring-1 ring-slate-200/70"><Upload className="size-6" strokeWidth={1.5} aria-hidden="true" /></span>
+                        <span className="text-base font-semibold tracking-tight text-slate-900">{isDragging ? "Drop your PDF here" : "Add your PDF document"}</span>
+                        <span className="mt-1.5 text-sm text-slate-500">Drag and drop your file to get started</span>
+                        <span className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#17365d] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition group-hover:bg-[#102846]">Browse files <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                        <span className="mt-4 text-[11px] text-slate-400">PDF documents only · Maximum 20 MB</span>
+                      </span>
+                    )}
                     <input
                       ref={fileInputRef}
                       id="pdf-upload"
                       type="file"
                       accept=".pdf,application/pdf"
+                      aria-label={uploadId ? "Change PDF document" : "Choose PDF document"}
                       disabled={!canUpload}
                       onChange={handleFileChange}
                       className="sr-only"
