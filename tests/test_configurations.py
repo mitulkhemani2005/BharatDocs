@@ -124,7 +124,7 @@ class ConfigurationTests(unittest.TestCase):
         executable.parent.mkdir(parents=True)
         (resources / 'hindi_terms.json').write_text('{}', encoding='utf-8')
         with patch('sys.frozen', True, create=True), patch('sys.executable', str(executable)):
-            self.assertEqual(resource_root(), resources)
+            self.assertEqual(resource_root(), resources.resolve())
 
     def test_overlapping_areas_remain_separately_saved_but_extract_once(self):
         layout = {**self.layout, 'regions': [
