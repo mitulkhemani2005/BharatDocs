@@ -5,6 +5,7 @@ import math
 import sqlite3
 import uuid
 from contextlib import contextmanager
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -17,6 +18,7 @@ class Region(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     rect: tuple[float, float, float, float]
     text_rect: tuple[float, float, float, float] | None = None
+    mode: Literal["translate", "preserve"] = "translate"
 
 
 class Layout(BaseModel):
@@ -33,6 +35,8 @@ class Layout(BaseModel):
         if not self.name:
             raise ValueError("Enter a configuration name.")
         names = set()
+        if not any(region.mode == "translate" for region in self.regions):
+            raise ValueError("Add at least one translation area.")
         for region in self.regions:
             region.name = region.name.strip()
             if not region.name or region.name in names:
@@ -46,6 +50,8 @@ class Layout(BaseModel):
                     raise ValueError("An area is too small. Draw a larger rectangle.")
         for index, first in enumerate(self.regions):
             for second in self.regions[index + 1:]:
+                if first.mode != second.mode:
+                    continue
                 for a, b in ((first.rect, second.rect), (first.text_rect or first.rect, second.text_rect or second.rect)):
                     if max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3]):
                         raise ValueError("Translation areas must not overlap other areas of the same type.")

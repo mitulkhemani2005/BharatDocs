@@ -1,7 +1,5 @@
 export type HindiFont = "Noto Sans Devanagari"
 
-type ProcessingCallback = () => void
-
 export function getApiBase() {
   if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_DESKTOP_APP === "1") {
     const apiBase = new URLSearchParams(window.location.search).get("apiBase")
@@ -22,7 +20,7 @@ async function responseError(response: Response, fallback: string) {
 }
 
 export type Rect = [number, number, number, number]
-export type TranslationArea = { name: string; rect: Rect; text_rect?: Rect | null }
+export type TranslationArea = { name: string; rect: Rect; text_rect?: Rect | null; mode?: "translate" | "preserve" }
 export type Configuration = { id: string; name: string; page_width: number; page_height: number; font_size: number; regions: TranslationArea[] }
 export type ConfigurationDraft = Omit<Configuration, "id">
 export type PagePreview = { page: number; page_count: number; width: number; height: number; image: string }
@@ -60,21 +58,17 @@ export async function getPagePreview(uploadId: string, page: number): Promise<Pa
   return response.json()
 }
 
-export async function uploadAndTranslatePdf(
-  file: File,
+export async function translateUploadedPdf(
+  uploadId: string,
   fontFamily: HindiFont,
-  onProcessing: ProcessingCallback,
   configurationId: string,
 ): Promise<Blob> {
   if (!configurationId) throw new Error("Create or select a saved configuration before translating a PDF.")
   const apiBase = getApiBase()
-  const upload = await uploadPdf(file)
-
-  onProcessing()
   const translationResponse = await fetch(`${apiBase}/translate-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...ownerHeaders() },
-    body: JSON.stringify({ upload_id: upload.upload_id, font_family: fontFamily, configuration_id: configurationId }),
+    body: JSON.stringify({ upload_id: uploadId, font_family: fontFamily, configuration_id: configurationId }),
   })
   if (!translationResponse.ok) {
     throw new Error(await responseError(translationResponse, "The PDF could not be translated. Please try again."))

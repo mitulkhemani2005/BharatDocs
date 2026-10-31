@@ -12,6 +12,23 @@ from backend.services.pdf_modifier import (
 
 
 class HindiSpacingTests(unittest.TestCase):
+    def test_long_hindi_wraps_automatically_without_covering_neighbor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            with fitz.open() as doc:
+                page = doc.new_page(width=300, height=200)
+                page.insert_text((20, 70), 'NAME', fontsize=8)
+                page.insert_text((20, 130), 'KEEP THIS LABEL', fontsize=10)
+                before = page.get_pixmap(clip=fitz.Rect(15, 117, 150, 135)).samples
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [{
+                'page': 0, 'region_name': 'name', 'rect': [15, 60, 90, 75],
+                'hindi_text': 'अशोक किराना एवं जनरल स्टोर ऋषि नगर',
+            }])
+            with fitz.open(output) as doc:
+                self.assertEqual(before, doc[0].get_pixmap(clip=fitz.Rect(15, 117, 150, 135)).samples)
+                self.assertIn('अशोक', doc[0].get_text())
+
     def test_upper_and_lower_matras_stay_inside_separate_rows(self):
         destinations = [fitz.Rect(20, 20, 219, 33.3), fitz.Rect(20, 34.9, 219, 49)]
         texts = ["कृष्ण किराना स्टोर", "ऋषि नगर, उज्जैन"]

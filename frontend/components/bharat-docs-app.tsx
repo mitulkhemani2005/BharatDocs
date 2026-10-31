@@ -17,11 +17,11 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { configurationRequest, uploadAndTranslatePdf, type Configuration, type HindiFont } from "@/lib/api-client"
+import { configurationRequest, translateUploadedPdf, uploadPdf, type Configuration, type HindiFont } from "@/lib/api-client"
 import ConfigurationEditor from "@/components/configuration-editor"
 import { legalHref } from "@/lib/legal-links"
 
-type Status = "idle" | "uploading" | "processing" | "complete"
+type Status = "idle" | "ready" | "uploading" | "processing" | "complete"
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 
@@ -29,6 +29,7 @@ export default function BharatDocsApp() {
   const isDesktopApp = process.env.NEXT_PUBLIC_DESKTOP_APP === "1"
   const [status, setStatus] = useState<Status>("idle")
   const fontFamily: HindiFont = "Noto Sans Devanagari"
+  const [uploadId, setUploadId] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -87,10 +88,11 @@ export default function BharatDocsApp() {
     setSelectedFile(file)
     setError(null)
     setTranslatedBlob(null)
-    setStatus("uploading")
+    if (!uploadId) return
+    setStatus("processing")
 
     try {
-      const blob = await uploadAndTranslatePdf(file, fontFamily, () => setStatus("processing"), configurationId)
+      const blob = await translateUploadedPdf(uploadId, fontFamily, configurationId)
       setTranslatedBlob(blob)
       setStatus("complete")
     } catch (caughtError) {
@@ -99,13 +101,9 @@ export default function BharatDocsApp() {
     }
   }
 
-  const selectFile = (file?: File) => {
-    if (!file) return
+  const selectFile = async (file?: File) => {
+    if (!file || isBusy) return
     setError(null)
-    if (!configurationId || configurationsLoading || configurationError) {
-      setError("Create or select a saved configuration before uploading a PDF to translate.")
-      return
-    }
     if (!isDesktopApp && !hasAcceptedTerms) {
       setError("Please confirm you have permission to submit this PDF and review the Terms and Privacy Notice.")
       return
@@ -113,6 +111,7 @@ export default function BharatDocsApp() {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setStatus("idle")
       setSelectedFile(null)
+      setUploadId(null)
       setTranslatedBlob(null)
       setError("Choose a PDF file to continue.")
       return
@@ -120,11 +119,23 @@ export default function BharatDocsApp() {
     if (file.size > MAX_FILE_SIZE) {
       setStatus("idle")
       setSelectedFile(null)
+      setUploadId(null)
       setTranslatedBlob(null)
       setError("This file is larger than 20 MB. Choose a smaller PDF.")
       return
     }
-    void startTranslation(file)
+    setSelectedFile(file)
+    setUploadId(null)
+    setTranslatedBlob(null)
+    setStatus("uploading")
+    try {
+      const uploaded = await uploadPdf(file)
+      setUploadId(uploaded.upload_id)
+      setStatus("ready")
+    } catch (caught) {
+      setStatus("idle")
+      setError(caught instanceof Error ? caught.message : "The PDF could not be uploaded.")
+    }
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,13 +176,16 @@ export default function BharatDocsApp() {
   const handleReset = () => {
     setStatus("idle")
     setSelectedFile(null)
+    setUploadId(null)
     setTranslatedBlob(null)
     setError(null)
     closePreview()
   }
 
   const isBusy = status === "uploading" || status === "processing"
-  const canTranslate = !!configurationId && !configurationsLoading && !configurationError && (isDesktopApp || hasAcceptedTerms)
+  const canTranslate = !!uploadId && !!configurationId && !configurationsLoading && !configurationError
+  const canUpload = !isBusy && (isDesktopApp || hasAcceptedTerms)
+  const resetResult = () => { setTranslatedBlob(null); setStatus(uploadId ? "ready" : "idle"); setError(null); closePreview() }
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -211,9 +225,10 @@ export default function BharatDocsApp() {
               className={`mt-8 rounded-2xl border bg-white p-5 transition sm:p-6 ${isDragging ? "border-[#17365d] ring-4 ring-slate-100" : "border-slate-200 shadow-sm"}`}
               aria-live="polite"
             >
-              <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
+              {uploadId && <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
+                <p className="truncate rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">PDF uploaded: {selectedFile?.name}</p>
                 <label className="grid gap-2 text-sm font-semibold" htmlFor="configuration-select">Translation configuration
-                  <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); handleReset() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
+                  <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); resetResult() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
                     <option value="" disabled>Select a configuration</option>
                     {configurations.map(configuration => <option key={configuration.id} value={configuration.id}>{configuration.name}</option>)}
                   </select>
@@ -222,10 +237,10 @@ export default function BharatDocsApp() {
                   <Button variant="outline" size="sm" disabled={isBusy || configurationsLoading || !!configurationError} onClick={() => setEditor({ configuration: null })}>New configuration</Button>
                   {configurationId && <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setEditor({ configuration: configurations.find(item => item.id === configurationId) || null })}>Edit / delete</Button>}
                 </div>
-                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create your first configuration to select translation areas, then upload a PDF to translate." : "Choose a saved configuration before uploading. Its selected areas apply to every page."}</p>
+                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create a configuration using this PDF to select translation and protected areas." : "Choose a saved configuration for this PDF. Its selected areas apply to every page."}</p>
                 {configurationError && <p role="alert" className="text-xs text-red-700">{configurationError} <button onClick={loadConfigurations} className="underline">Retry loading configurations</button></p>}
-              </div>
-              {status === "idle" && !isDesktopApp && (
+              </div>}
+              {(status === "idle" || status === "ready") && !isDesktopApp && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl bg-slate-50 px-3.5 py-3">
                   <input
                     id="accept-terms"
@@ -292,12 +307,12 @@ export default function BharatDocsApp() {
                 <>
                   <label
                     htmlFor="pdf-upload"
-                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${canTranslate ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
+                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${canUpload ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
                   >
                     <span className="grid size-12 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
                       <Upload className="size-5" aria-hidden="true" />
                     </span>
-                    <span className="mt-4 text-base font-semibold text-slate-900">Choose a PDF to translate</span>
+                    <span className="mt-4 text-base font-semibold text-slate-900">{uploadId ? "Choose a different PDF" : "Choose a PDF to translate"}</span>
                     <span className="mt-1 text-sm text-slate-500">Drop it here or <span className="font-medium text-[#17365d] underline underline-offset-2">browse files</span></span>
                     <span className="mt-4 text-xs text-slate-500">PDF only · Up to 20 MB</span>
                     <input
@@ -305,16 +320,17 @@ export default function BharatDocsApp() {
                       id="pdf-upload"
                       type="file"
                       accept=".pdf,application/pdf"
-                      disabled={!canTranslate}
+                      disabled={!canUpload}
                       onChange={handleFileChange}
                       className="sr-only"
                     />
                   </label>
+                  {uploadId && <Button className="mt-4 h-11 w-full bg-[#17365d] text-white" disabled={!canTranslate} onClick={() => selectedFile && void startTranslation(selectedFile)}>Translate PDF into Hindi</Button>}
                   {error && (
                     <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800" role="alert">
                       <span className="mt-0.5 size-2 shrink-0 rounded-full bg-red-500" />
                       <span className="flex-1">{error}</span>
-                      {selectedFile && <button className="shrink-0 font-semibold underline underline-offset-2" onClick={() => void startTranslation(selectedFile)}>Retry</button>}
+                      {selectedFile && <button className="shrink-0 font-semibold underline underline-offset-2" onClick={() => uploadId ? void startTranslation(selectedFile) : void selectFile(selectedFile)}>Retry</button>}
                     </div>
                   )}
                 </>
@@ -339,7 +355,7 @@ export default function BharatDocsApp() {
                 </li>
                 <li className="flex gap-4 py-5">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">02</span>
-                  <div><h3 className="font-semibold text-slate-800">Let BharatDocs translate</h3><p className="mt-1 text-sm leading-6 text-slate-500">English text in the configured fields is translated to Hindi.</p></div>
+                  <div><h3 className="font-semibold text-slate-800">Choose a configuration</h3><p className="mt-1 text-sm leading-6 text-slate-500">Select or create a layout, then translate its selected areas into Hindi.</p></div>
                 </li>
                 <li className="flex gap-4 py-5">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">03</span>
@@ -385,16 +401,16 @@ export default function BharatDocsApp() {
           </section>
         </div>
       )}
-      {editor && <ConfigurationEditor configuration={editor.configuration} canUpload={isDesktopApp || hasAcceptedTerms} onClose={() => setEditor(null)} onSaved={saved => {
+      {editor && <ConfigurationEditor configuration={editor.configuration} initialUploadId={uploadId} canUpload={isDesktopApp || hasAcceptedTerms} onClose={() => setEditor(null)} onSaved={saved => {
         setConfigurations(previous => [saved, ...previous.filter(item => item.id !== saved.id)])
         chooseConfiguration(saved.id)
         setEditor(null)
-        handleReset()
+        resetResult()
       }} onDeleted={id => {
         setConfigurations(previous => previous.filter(item => item.id !== id))
         if (configurationId === id) chooseConfiguration("")
         setEditor(null)
-        handleReset()
+        resetResult()
       }} />}
     </main>
   )

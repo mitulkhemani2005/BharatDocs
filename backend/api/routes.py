@@ -12,7 +12,6 @@ from typing import Literal
 import fitz
 from fastapi import APIRouter, File, UploadFile, Header, Query
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from backend.core.errors import APIError
@@ -261,5 +260,4 @@ def translate_pdf(payload: TranslatePDFRequest, x_configuration_owner: str | Non
         output_path,
         media_type="application/pdf",
         filename=output_filename,
-        background=BackgroundTask(shutil.rmtree, job_dir, ignore_errors=True),
     )

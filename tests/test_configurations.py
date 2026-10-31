@@ -83,6 +83,31 @@ class ConfigurationTests(unittest.TestCase):
         with patch('sys.frozen', True, create=True), patch('sys.executable', str(executable)):
             self.assertEqual(resource_root(), resources)
 
+    def test_protected_layer_preserves_pixels_and_upload_can_be_reused(self):
+        with fitz.open() as document:
+            for scale in (1, 2):
+                page = document.new_page(width=300*scale, height=200*scale)
+                page.insert_text((20*scale, 30*scale), 'ASHOK', fontsize=12*scale)
+                page.insert_text((150*scale, 30*scale), '12345', fontsize=12*scale)
+            source = document.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('protected.pdf', source, 'application/pdf')}).json()['upload_id']
+        layout = {**self.layout, 'regions': [
+            {'name': 'Name', 'rect': [10, 10, 250, 45]},
+            {'name': 'Amount', 'rect': [145, 10, 240, 45], 'mode': 'preserve'},
+        ]}
+        created = self.client.post('/configurations', json=layout, headers=self.headers)
+        self.assertEqual(created.status_code, 201, created.text)
+        key = created.json()['id']
+        extracted = self.client.get('/extract-regions', params={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers).json()['regions']
+        self.assertEqual([region['text'] for region in extracted], ['ASHOK', 'ASHOK'])
+        for _ in range(2):
+            result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+            self.assertEqual(result.status_code, 200)
+            with fitz.open(stream=result.content, filetype='pdf') as output, fitz.open(stream=source, filetype='pdf') as original:
+                for index, scale in enumerate((1, 2)):
+                    clip = fitz.Rect(145*scale, 10*scale, 240*scale, 45*scale)
+                    self.assertEqual(original[index].get_pixmap(clip=clip).samples, output[index].get_pixmap(clip=clip).samples)
+
     def test_preview_and_selected_layout_convert_every_page_at_scaled_coordinates(self):
         with fitz.open() as document:
             for scale in (1, 2):

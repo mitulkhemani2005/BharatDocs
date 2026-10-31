@@ -80,15 +80,17 @@ def _expanded_text_rect(page, bbox, vertical_padding, vertical_offset=0):
     )
 
 
-def _prepare_hindi_text(document, text, font_size, css, archive):
+def _prepare_hindi_text(document, text, font_size, css, archive, wrap_width=None):
     """Shape once, then measure painted ink including every upper/lower matra."""
-    page = document.new_page(width=max(400, len(text) * font_size * 1.5), height=font_size * 5)
+    page = document.new_page(width=(wrap_width + 4) if wrap_width else max(400, len(text) * font_size * 1.5), height=min(10000, max(font_size * 5, len(text) * font_size * 2)) if wrap_width else font_size * 5)
+    if wrap_width:
+        css = css.replace("white-space: nowrap", "white-space: normal; overflow-wrap: anywhere").replace("line-height: 1.5", "line-height: 1.6")
     remaining, _ = page.insert_htmlbox(
-        page.rect, f'<p lang="hi">{html.escape(text, quote=False)}</p>',
+        page.rect + (2, 2, -2, -2), f'<p lang="hi">{html.escape(text, quote=False)}</p>',
         css=css, archive=archive, scale_low=1,
     )
     if remaining < 0:
-        raise PdfProcessingError("Hindi text could not be shaped into a single line.")
+        raise PdfProcessingError("This field contains more text than can fit on the PDF page.")
     blocks = page.get_text("blocks")
     if not blocks:
         raise PdfProcessingError("Hindi text could not be measured.")
@@ -117,7 +119,7 @@ def _prepare_hindi_text(document, text, font_size, css, archive):
 def _fit_text_rect(destination, ink, minimum_scale):
     scale = min(1, destination.width / ink.width, destination.height / ink.height)
     if scale < minimum_scale:
-        raise PdfProcessingError("Hindi text needs more space to keep its matras readable. Edit the configuration and enlarge the Hindi placement area.")
+        raise PdfProcessingError("This page has too little free space to place readable Hindi without covering other content.")
     width, height = ink.width * scale, ink.height * scale
     x = destination.x0 + (destination.width - width) / 2
     y = destination.y0 + (destination.height - height) / 2
@@ -147,6 +149,41 @@ def _layout_moves(options):
     return moves
 
 
+def _subtract_rectangles(rectangle, masks):
+    pieces = [fitz.Rect(rectangle)]
+    for mask in masks:
+        remaining = []
+        for rect in pieces:
+            overlap = rect & mask
+            if overlap.is_empty:
+                remaining.append(rect)
+                continue
+            remaining.extend(part for part in (
+                fitz.Rect(rect.x0, rect.y0, rect.x1, overlap.y0),
+                fitz.Rect(rect.x0, overlap.y1, rect.x1, rect.y1),
+                fitz.Rect(rect.x0, overlap.y0, overlap.x0, overlap.y1),
+                fitz.Rect(overlap.x1, overlap.y0, rect.x1, overlap.y1),
+            ) if not part.is_empty)
+        pieces = remaining
+    return pieces
+
+
+def _automatic_destination(page, seed, blockers, font_size):
+    """Grow into nearby blank space, respecting labels, rules and other fields."""
+    top, bottom = max(0, seed.y0 - font_size * 2), min(page.rect.height, seed.y1 + font_size * 2)
+    for block in blockers:
+        if block.x0 < seed.x1 and block.x1 > seed.x0:
+            if block.y1 <= seed.y0:
+                top = max(top, block.y1 + 1)
+            elif block.y0 >= seed.y1:
+                bottom = min(bottom, block.y0 - 1)
+    expanded = fitz.Rect(seed.x0, top, seed.x1, bottom)
+    pieces = _subtract_rectangles(expanded, blockers)
+    if not pieces:
+        raise PdfProcessingError("This page has no free space for the selected Hindi field.")
+    return max(pieces, key=lambda rect: rect.get_area())
+
+
 def apply_translations_to_pdf(
     input_pdf_path,
     output_pdf_path,
@@ -174,10 +211,12 @@ def apply_translations_to_pdf(
                 raise PdfProcessingError("Password-protected PDFs cannot be translated.")
 
             page_regions = {}
+            protected_pages = {}
             for region in translated_regions:
                 page_index = region.get("page")
                 if not isinstance(page_index, int) or not 0 <= page_index < doc.page_count:
                     continue
+                protected_pages[page_index] = [fitz.Rect(rect) for rect in region.get("protected_rects", [])]
                 hindi_text = region.get("hindi_text", "").strip()
                 if not hindi_text:
                     continue
@@ -192,11 +231,52 @@ def apply_translations_to_pdf(
                     region.get("text_rect"),
                 ))
 
-            # Finish the source document before importing its PDF resources.
-            for regions in page_regions.values():
-                for _bbox, text, _name, _offset, _destination in regions:
-                    if text not in prepared:
-                        prepared[text] = _prepare_hindi_text(text_doc, text, font_size, css, archive)
+            # Plan and shape everything before grafting PDF resources from text_doc.
+            plans = {}
+            clear_masks = {}
+            for page_index, regions in page_regions.items():
+                page = doc[page_index]
+                masks = protected_pages.get(page_index, [])
+                spans = [fitz.Rect(span["bbox"]) for block in page.get_text("dict")["blocks"]
+                         for line in block.get("lines", []) for span in line["spans"]]
+                fixed = [span for span in spans if not any(
+                    ((span.x0 + span.x1) / 2, (span.y0 + span.y1) / 2) in item[0] for item in regions)]
+                # Thin rules and image bounds are also content to avoid.
+                for drawing in page.get_drawings():
+                    for item in drawing["items"]:
+                        if item[0] == "l":
+                            line = fitz.Rect(item[1], item[2]).normalize()
+                            fixed.append(line + (-.5, -.5, .5, .5))
+                        elif item[0] == "re":
+                            rect = fitz.Rect(item[1])
+                            fixed.extend((fitz.Rect(rect.x0, rect.y0-.5, rect.x1, rect.y0+.5),
+                                          fitz.Rect(rect.x0, rect.y1-.5, rect.x1, rect.y1+.5),
+                                          fitz.Rect(rect.x0-.5, rect.y0, rect.x0+.5, rect.y1),
+                                          fitz.Rect(rect.x1-.5, rect.y0, rect.x1+.5, rect.y1)))
+                fixed.extend(fitz.Rect(info["bbox"]) for info in page.get_image_info())
+                clear_masks[page_index] = fixed + masks
+                seeds = [fitz.Rect(item[4]) if item[4] else fitz.Rect(item[0]) for item in regions]
+                placed = []
+                for index, (_bbox, text, _name, _offset, _destination) in enumerate(regions):
+                    blockers = fixed + masks + placed + [seed for i, seed in enumerate(seeds) if i != index]
+                    destination = _automatic_destination(page, seeds[index], blockers, font_size)
+                    candidates = []
+                    for width in (None, round(destination.width, 2)):
+                        key = (text, width)
+                        if key not in prepared:
+                            prepared[key] = _prepare_hindi_text(text_doc, text, font_size, css, archive, width)
+                        number, ink = prepared[key]
+                        scale = min(1, destination.width / ink.width, destination.height / ink.height)
+                        candidates.append((scale, number, ink))
+                        if scale >= .95:
+                            break
+                    scale, number, ink = max(candidates, key=lambda candidate: candidate[0])
+                    fitted = _fit_text_rect(destination, ink, min(1, 8 / font_size))
+                    target_y = min(max((seeds[index].y0 + seeds[index].y1 - fitted.height) / 2, destination.y0), destination.y1 - fitted.height)
+                    dy = target_y - fitted.y0
+                    fitted += (0, dy, 0, dy)
+                    plans[(page_index, index)] = (number, ink, fitted)
+                    placed.append(fitted + (-1, -1, 1, 1))
 
             for page_index, regions in page_regions.items():
                 page = doc[page_index]
@@ -209,14 +289,11 @@ def apply_translations_to_pdf(
                         raise PdfProcessingError("A PDF move_regions rectangle is outside the page.")
                     page.draw_rect(source, fill=(1, 1, 1), color=None, overlay=True)
                 for bbox, _text, _name, _offset, _destination in regions:
-                    page.draw_rect(_source_clear_rect(bbox, source_spans), fill=(1, 1, 1), color=None, overlay=True)
+                    for clear in _subtract_rectangles(_source_clear_rect(bbox, source_spans), clear_masks.get(page_index, [])):
+                        page.draw_rect(clear, fill=(1, 1, 1), color=None, overlay=True)
 
-                for bbox, text, region_name, vertical_offset, destination in regions:
-                    text_rect = (fitz.Rect(destination) & page.rect) if destination else _expanded_text_rect(page, bbox, vertical_padding, vertical_offset)
-                    if text_rect.is_empty:
-                        raise PdfProcessingError(f"Hindi text placement for '{region_name}' is outside the page.")
-                    source_page, ink = prepared[text]
-                    fitted = _fit_text_rect(text_rect, ink, minimum_scale)
+                for index, _region in enumerate(regions):
+                    source_page, ink, fitted = plans[(page_index, index)]
                     page.show_pdf_page(fitted, text_doc, source_page, clip=ink, overlay=True)
 
                 for source, target in moves:
