@@ -1,47 +1,110 @@
+<div align="center">
+
+<img src="frontend/public/brand-mark.svg" width="76" alt="BharatDocs logo" />
+
 # BharatDocs
 
-**Offline English-to-Hindi PDF field translation for Windows and the web.**
+### Your documents, in clear Hindi.
 
-[Download the Windows installer (v2.0.1)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.1/BharatDocs-Setup-2.0.1.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.1) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
+Convert selected English names, addresses, and invoice fields into readable Devanagari.<br />
+Save your layouts. Keep your document structure. Work offline on Windows.
 
+[![Version](https://img.shields.io/badge/version-2.0.1-17365d?style=flat-square)](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.1)
+[![Windows](https://img.shields.io/badge/desktop-Windows_x64-17365d?style=flat-square)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.1/BharatDocs-Setup-2.0.1.exe)
 [![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml)
 
-BharatDocs converts text in configured PDF fields to Hindi. It includes an offline Windows desktop app, a separate Next.js web client, and a FastAPI service. The web client and API run as independent services; the API root does not serve the frontend.
+**[Download Windows app](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.1/BharatDocs-Setup-2.0.1.exe)** · **[Release notes & checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.1)** · **[Run the website](#run-the-website-locally)**
 
-## About
+[See the result](#english-in-hindi-out) · [How to use](#three-steps-to-a-hindi-pdf) · [Configurations](#make-a-layout-once-reuse-it) · [Developer guide](#developer-guide) · [Troubleshooting](#troubleshooting)
 
-BharatDocs is built for translating configured names, addresses, and other bill fields into readable Devanagari while retaining the surrounding PDF. It uses a local IndicXlit model and a bundled Hindi font. The Windows desktop app works offline after installation.
+</div>
 
-## Product
+![BharatDocs Windows app with PDF upload and a three-step translation workflow](docs/images/desktop-app.png)
 
-- Upload a PDF by browsing or drag and drop.
-- Translate configured PDF regions into Hindi.
-- Preview and download the translated PDF.
-- Preserve numeric values and identifiers in configured text.
-- Process translations locally in the Windows desktop app without an external translation API.
-- Store desktop originals and translated copies in the user's Documents folder.
+## English in. Hindi out.
 
-Upload a PDF, then create or select a saved configuration before translating. The app translates names, addresses, and bill fields in the selected areas. Review translated names and amounts before using a document.
+Choose exactly which fields to convert. This example converts the customer name and market address while retaining the rest of the invoice.
 
-## Build the Windows installer
+<table>
+  <tr>
+    <th width="50%">Original English invoice</th>
+    <th width="50%">Hindi in the selected fields</th>
+  </tr>
+  <tr>
+    <td><a href="docs/images/invoice-before.png"><img src="docs/images/invoice-before.png" alt="Original invoice with customer name and market address in English" width="100%" /></a></td>
+    <td><a href="docs/images/invoice-after.png"><img src="docs/images/invoice-after.png" alt="Converted invoice with the selected customer name and market address in Hindi" width="100%" /></a></td>
+  </tr>
+</table>
 
-On a Windows x64 build machine with Python 3.10 and Node.js 20 or newer, run:
+*Click either picture to view the full-size example.*
+
+## Built for everyday bill processing
+
+| Capability | What it does |
+| --- | --- |
+| **Selected-area conversion** | Converts the fields you mark and keeps Hindi inside those rectangles. |
+| **Reusable configurations** | Save, edit, copy, or delete layouts for different invoice formats. |
+| **Readable Hindi** | Uses bundled Noto Sans Devanagari Regular with shaped matras and automatic spacing. |
+| **Automatic text fitting** | Wraps and reduces text size when needed, using your chosen size as the maximum. |
+| **Offline OCR fallback** | Uses selectable text first; reads a selected scanned image area only when it has no selectable text. |
+| **Multi-page processing** | Repeats the selected layout across all pages, scaling coordinates to each page size. |
+| **Offline Windows app** | Includes the translation model, OCR data, font, and local backend in the installer. |
+| **Separate website** | Runs a Next.js frontend and FastAPI backend independently of the desktop app. |
+
+The conversion combines a Hindi glossary with IndicXlit spelling for names and addresses. It is designed for document fields; review converted names and amounts before using the output.
+
+## Get the Windows app
+
+1. **[Download BharatDocs 2.0.1](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.1/BharatDocs-Setup-2.0.1.exe)** for Windows x64.
+2. Run the installer and choose the installation folder.
+3. Open **BharatDocs** from the Desktop or Start Menu shortcut.
+
+The installed app processes documents locally and works without internet access. The target computer does not need Python, Node.js, or a separate Tesseract installation. A SHA-256 checksum is available on the [release page](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.1).
+
+## Three steps to a Hindi PDF
+
+| 1 · Add a PDF | 2 · Choose a configuration | 3 · Translate and save |
+| --- | --- | --- |
+| Browse or drag a document into the app. | Select a saved layout or create one using the uploaded PDF. | Click **Translate PDF into Hindi**, preview the result, and download it. |
+
+**Supported uploads:** unencrypted PDF files up to **20 MB** and **200 pages**. Scanned PDFs use the automatic OCR fallback; recognition quality depends on the clarity of the scan.
+
+## Make a layout once. Reuse it.
+
+![Configuration editor showing two selected invoice fields, area controls, and Hindi font sizes](docs/images/configuration-editor.png)
+
+*The editor screenshot shows the selection workflow. In version 2.0.1, scanned selections are read automatically through offline OCR fallback.*
+
+1. Upload a PDF, then click **New configuration** and enter a name.
+2. Choose any page and draw a rectangle around an English field. Use **Add area** for more fields.
+3. Rename areas directly in the list. Select **Move area** to reposition a rectangle or **Redraw area** to change its size.
+4. Click an area's font-size badge to edit its maximum size. Use the reset icon, when shown, to return to the configuration default.
+5. Click **Save configuration**. Choose it on the main screen and translate.
+
+Use **Edit / delete** to reopen a saved layout, **Save as new** to copy it, or **Delete configuration** in the editor header to remove it. **Delete selected area** removes only the selected rectangle. The app starts with an empty configuration list so you can create layouts for your own documents.
+
+### How text fitting and OCR work
+
+- **Selectable text comes first.** Existing PDF text layers, including existing OCR layers, use normal extraction.
+- **OCR runs only as a fallback.** A selected image area without selectable text is recognized locally. Other areas keep their normal extraction path.
+- **Your font size is a maximum.** Set a default or individual size from **8–32 pt**. Text uses the largest fitting size, reducing to a **6 pt** minimum when necessary.
+- **Each area keeps its boundary.** Hindi stays inside the selected rectangle. Conversion does not borrow space from another area or add continuation pages.
+- **Overlaps stay manageable.** Areas remain separate entries, and duplicate source text is extracted only once. If text cannot fit even at the minimum size, the app identifies the area and page that need more room.
+
+## Run the website locally
+
+Use **Python 3.10 or newer** and **Node.js 22**. Internet access is needed for initial dependency and model downloads; the prepared backend performs conversion locally.
+
+### 1. Get the project
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
+git clone --branch v2.0.1 https://github.com/mitulkhemani2005/BharatDocs.git
+cd BharatDocs
 ```
 
-The script prepares the pinned, checksum-verified translation model and English OCR data, builds the frontend and local API executable, and creates an NSIS installer in `release/`. The installer creates Start Menu and Desktop shortcuts with the BharatDocs icon. After installation, launch BharatDocs from either shortcut. Python, Node.js, a separate Tesseract installation, and an internet connection are not needed on the target computer.
+### 2. Prepare and start the backend
 
-To rebuild with an already prepared model and installed Node dependencies:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1 -SkipModelPreparation -SkipNodeInstall
-```
-
-## Run locally
-
-Install Python 3.10 or newer and Node.js 20 or newer. In the project root:
+In the project root:
 
 ```powershell
 python -m venv .venv
@@ -52,7 +115,9 @@ python scripts/prepare_ocr_data.py
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 
-In a second terminal, start the web client:
+### 3. Start the frontend
+
+Open a second terminal in the project root:
 
 ```powershell
 cd frontend
@@ -61,69 +126,131 @@ $env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:5000"
 npm run dev
 ```
 
-Open `http://localhost:3000`. The API has health and OpenAPI endpoints at `http://127.0.0.1:5000/health` and `http://127.0.0.1:5000/docs`.
+| Open | Address |
+| --- | --- |
+| Website | [localhost:3000](http://localhost:3000) |
+| API health | [127.0.0.1:5000/health](http://127.0.0.1:5000/health) |
+| API documentation | [127.0.0.1:5000/docs](http://127.0.0.1:5000/docs) |
 
-## Data storage
+Keep both terminals running. The API root returns service status; the website is served separately by Next.js.
 
-The desktop app saves accepted source PDFs to `Documents\BharatDocs\Input` and translated PDFs to `Documents\BharatDocs\Output`. Temporary working sessions are stored under `Documents\BharatDocs\Work`; expired sessions are pruned when a later upload begins. The input and output copies remain until the user removes them.
+## Where your files and configurations live
 
-The web client cannot write to a visitor's local Documents folder. When deployed, the API stores its working files and retained copies on the server. Use a persistent, access-controlled volume and the `BHARATDOCS_DOCUMENTS` setting for that location.
+For the Windows app, the default location is `Documents\BharatDocs`:
 
-## Deployment
+```text
+BharatDocs/
+├── Input/                         Original uploaded PDFs
+├── Output/                        Converted Hindi PDFs
+├── Work/                          Temporary upload sessions
+└── Configurations/
+    └── layouts.sqlite3            Saved layouts
+```
 
-Docker deployment files are provided for the API and web client. See [DEPLOYMENT.md](DEPLOYMENT.md) for local container deployment, environment variables, persistent storage, and public hosting requirements.
+Input and output copies remain until you remove them. Working uploads can be reused for two hours; expired sessions are pruned when another upload begins. Set `BHARATDOCS_DOCUMENTS` to use a different storage directory.
 
-## Repository automation
+In a hosted website, these files live on the **API server**, not on the visitor's computer. Configurations are associated with a random key in browser storage. Use the same browser to access them; clearing that storage loses its association with saved configurations. This key is not account authentication. See the [deployment guide](DEPLOYMENT.md) for persistent storage and access controls.
 
-- Install `requirements-dev.txt` to run the backend tests locally; it includes the HTTP client used by the API tests.
-- GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
-- Pushing a version tag such as `v2.0.1` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
-- The release workflow expects the tag version to match `desktop/package.json`.
-- Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
+## Developer guide
 
-## Configure PDF regions
+### Technology
 
-Upload your PDF first. Then select a configuration or use **New configuration** to create a reusable layout from that PDF:
+| Layer | Implementation |
+| --- | --- |
+| Website | Next.js and TypeScript |
+| API | Python and FastAPI |
+| Windows desktop | Electron with a bundled local API |
+| PDF rendering | PyMuPDF with the regular Noto Sans Devanagari font |
+| Hindi conversion | Local glossary and IndicXlit through CTranslate2 |
+| OCR fallback | PyMuPDF's integrated OCR engine with bundled English data |
+| Saved configurations | SQLite in the application documents directory |
 
-1. Enter a name. The uploaded English PDF opens automatically as the reference.
-2. Select any reference page, then drag rectangles around the English fields to translate.
-3. Use **+ Add area** to draw each translation area. Every area stays separately listed and numbered. Content outside the selected areas stays unchanged. Rename areas directly in the PDF areas list. Select **Move area** and drag the selected rectangle to reposition it; **Redraw area** changes its size. **Delete selected area** is below these controls, and **Delete configuration** is in the header.
-4. Save the configuration, select it on the main screen, and click **Translate PDF into Hindi**. The areas repeat on every page and scale proportionally with page size. You can choose another configuration and translate the same upload again during its two-hour session.
-5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
+### Project structure
 
-Each area can have its own font size: click its size badge in **PDF areas** and type the size directly (8–32 pt). The small reset icon restores the configuration's **Default Hindi size**. **Add area** starts drawing a new selection. Individual sizes are saved as the maximum for each area. The app uses that size when it fits, otherwise automatically reduces it (down to 6 pt) while keeping text inside the same rectangle.
+```text
+backend/             FastAPI routes, PDF processing, translation, and OCR
+frontend/            Next.js interface and PDF configuration editor
+desktop/             Electron shell and Windows installer configuration
+fonts/               Hindi print font and its license
+scripts/             Asset preparation and build tools
+tests/               Backend and PDF regression tests
+docs/images/         Screenshots used in this README
+```
 
-Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
+The desktop app packages the frontend with a private loopback API. The website connects to an independently running API. Both use the same PDF conversion services.
 
-The editor uses selectable PDF text when available. If a selected area has no selectable text but contains an image, it automatically reads that area with offline English OCR. Only the selected crop is recognized; regular PDFs keep their fast text extraction path. OCR data is downloaded once during setup or the app build, and conversion never needs internet access. Hindi stays strictly inside each selected rectangle. The selected size (8–32 pt, default 18 pt) is the maximum; the app wraps and automatically finds the largest fitting size within half a point, down to a 6 pt minimum. The renderer never expands an area, borrows neighboring space, moves Hindi to another area, or adds continuation pages. Only when the text cannot fit even at 6 pt does conversion report the specific area and page that needs more space. Overlapping selections retain their individual boundaries and duplicate source characters are extracted only once. The last selected configuration is remembered in the browser.
+### Build a Windows installer
 
-The app starts with an empty configuration list. Upload your PDF, then create or choose a configuration for conversion. Deleting the selected configuration keeps the PDF ready while you choose or create another layout.
+On a Windows x64 build machine with Python 3.10 and Node.js 22, run from the project root:
 
-Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is distributed under the SIL Open Font License. Keep its accompanying license when redistributing the font. Third-party component licenses are listed in `THIRD_PARTY_NOTICES.txt`.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
+```
 
-## API
+The build verifies and prepares model and OCR assets, exports the desktop frontend, packages the backend, and creates `release/BharatDocs-Setup-2.0.1.exe`.
+
+For a repeat build with prepared assets and installed Node dependencies:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1 -SkipModelPreparation -SkipNodeInstall
+```
+
+### Run checks
+
+After preparing both models with the setup commands above:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+cd frontend
+npm ci
+npm run typecheck
+node scripts/test-area-layout.mjs
+npm run build:web
+npm run build:desktop
+```
+
+GitHub CI runs backend tests, frontend checks, and both frontend builds. Version tags trigger the Windows release workflow; the tag must match `desktop/package.json`. Configure `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign releases. Without them, builds are unsigned.
+
+<details>
+<summary><strong>API reference</strong></summary>
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | API status |
-| `GET` | `/health` | Health check |
-| `POST` | `/upload` | Validate a PDF and create a short-lived processing session |
-| `GET` | `/verify-pdf?upload_id=...` | Return page count and encryption status |
-| `GET` | `/extract-regions?upload_id=...` | Extract configured text |
-| `GET` | `/translate-regions?upload_id=...` | Translate configured text as JSON |
-| `POST` | `/translate-pdf` | Create and return a translated PDF |
-| `GET` | `/pdf-page?upload_id=...&page=1` | Render a reference page for drawing areas |
-| `GET`, `POST` | `/configurations` | List or create saved configurations |
-| `PUT`, `DELETE` | `/configurations/{id}` | Update or delete a saved configuration |
+| `GET` | `/health` | Service health |
+| `POST` | `/upload` | Validate and upload a PDF |
+| `GET` | `/verify-pdf` | Inspect an uploaded PDF |
+| `GET` | `/pdf-page` | Preview a page for area selection |
+| `GET`, `POST` | `/configurations` | List or create configurations |
+| `PUT`, `DELETE` | `/configurations/{id}` | Update or delete a configuration |
+| `GET` | `/extract-regions` | Extract selected text with OCR fallback |
+| `GET` | `/translate-regions` | Return Hindi conversion as JSON |
+| `POST` | `/translate-pdf` | Return the converted PDF |
 
-Configuration requests use the `X-Configuration-Owner` UUID header. A saved `configuration_id` is required in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header. Missing or deleted configurations are rejected; translation always uses the user's selected layout.
+Configuration requests use the `X-Configuration-Owner` UUID header. Conversion requires an `upload_id` and a saved `configuration_id` belonging to that owner. Supply them as JSON for `/translate-pdf`, or query parameters for the extraction endpoints. Page previews take `upload_id` and a one-based `page` parameter.
 
-Each region supports `mode: "translate"` (the default) or `mode: "preserve"`. Protected regions are excluded from extraction and Hindi placement on every page.
+Each area's optional `font_size` overrides the configuration default; omit it or use `null` to inherit. The API also supports legacy `mode: "preserve"` areas to protect content from extraction and placement.
 
-A region's optional `font_size` overrides the configuration size. Omit it or send `null` to use the configuration default.
+See the running service's [`/docs`](http://127.0.0.1:5000/docs) for request schemas.
 
-Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
+</details>
 
-## Licensing
+### Deployment
 
-The BharatDocs application source is proprietary and all rights are reserved. Third-party components and bundled fonts remain under their respective licenses. See [LICENSE](LICENSE.txt) and `THIRD_PARTY_NOTICES.txt`.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker Compose, environment variables, persistent storage, and public hosting requirements.
+
+## Troubleshooting
+
+| Problem | What to do |
+| --- | --- |
+| Port 5000 is already in use | Reuse the running backend, or start another on port 5001 and set `NEXT_PUBLIC_API_URL` to the matching URL before starting the frontend. |
+| Offline model or OCR data is missing | Run both `prepare_offline_model.py` and `prepare_ocr_data.py` from `scripts/`. For the desktop app, install the current complete installer. |
+| No text is found in a selected area | Check that the rectangle covers the name or address. Scanned image areas use OCR automatically; try a clearer scan if recognition is empty. |
+| Hindi cannot fit in an area | Increase that rectangle's size. The app already wraps and reduces text size automatically within its boundary. |
+| A saved configuration is unavailable | Use the same browser and storage directory used to create it. A deleted configuration must be recreated or replaced. |
+
+## License and notices
+
+BharatDocs application source is **proprietary; all rights reserved**. Bundled components retain their respective licenses, including the IndicXlit model, Tesseract OCR data, and Noto Hindi font.
+
+[Application license](LICENSE.txt) · [Third-party notices](THIRD_PARTY_NOTICES.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx) · [Changelog](CHANGELOG.md)
