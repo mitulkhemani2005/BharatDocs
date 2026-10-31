@@ -14,6 +14,8 @@ def translate_regions(extracted_regions):
             "text_offset_y": item.get("text_offset_y", 0),
             "font_size": item.get("font_size"),
             "protected_rects": item.get("protected_rects", []),
+            "ocr": item.get("ocr", False),
+            "source_rects": item.get("source_rects", []),
             "english_text": item["text"],
             "hindi_text": hindi_text
         })

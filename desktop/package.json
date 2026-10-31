@@ -1,6 +1,6 @@
 {
   "name": "bharatdocs-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Offline English-to-Hindi PDF translator for Windows",
   "author": "Mitul Khemani",
   "copyright": "Copyright © 2026 Mitul Khemani",
@@ -29,6 +29,7 @@
       { "from": "../.build/backend/desktop_backend", "to": "backend" },
       { "from": "../frontend/.next-desktop", "to": "frontend/out" },
       { "from": "../models/indicxlit-en-hi", "to": "models/indicxlit-en-hi" },
+      { "from": "../models/tessdata", "to": "models/tessdata" },
       { "from": "../hindi_terms.json", "to": "hindi_terms.json" },
       { "from": "../fonts", "to": "fonts" },
       { "from": "../LICENSE.txt", "to": "LICENSE.txt" },

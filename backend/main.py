@@ -28,7 +28,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BharatDocs API",
     description="Translate configured PDF regions into Hindi.",
-    version="2.0.0",
+    version="2.0.1",
     docs_url="/docs",
     redoc_url=None,
     lifespan=lifespan,

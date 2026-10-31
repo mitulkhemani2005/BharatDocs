@@ -2,7 +2,7 @@
 
 **Offline English-to-Hindi PDF field translation for Windows and the web.**
 
-[Download the Windows installer (v2.0.0)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.0/BharatDocs-Setup-2.0.0.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.0) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
+[Download the Windows installer (v2.0.1)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.1/BharatDocs-Setup-2.0.1.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.1) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
 
 [![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml)
 
@@ -31,7 +31,7 @@ On a Windows x64 build machine with Python 3.10 and Node.js 20 or newer, run:
 powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
 ```
 
-The script prepares the pinned, checksum-verified translation model, builds the frontend and local API executable, and creates an NSIS installer in `release/`. The installer creates Start Menu and Desktop shortcuts with the BharatDocs icon. After installation, launch BharatDocs from either shortcut. Python, Node.js, and an internet connection are not needed on the target computer.
+The script prepares the pinned, checksum-verified translation model and English OCR data, builds the frontend and local API executable, and creates an NSIS installer in `release/`. The installer creates Start Menu and Desktop shortcuts with the BharatDocs icon. After installation, launch BharatDocs from either shortcut. Python, Node.js, a separate Tesseract installation, and an internet connection are not needed on the target computer.
 
 To rebuild with an already prepared model and installed Node dependencies:
 
@@ -48,6 +48,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python scripts/prepare_offline_model.py
+python scripts/prepare_ocr_data.py
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 
@@ -76,7 +77,7 @@ Docker deployment files are provided for the API and web client. See [DEPLOYMENT
 
 - Install `requirements-dev.txt` to run the backend tests locally; it includes the HTTP client used by the API tests.
 - GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
-- Pushing a version tag such as `v2.0.0` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
+- Pushing a version tag such as `v2.0.1` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
 - The release workflow expects the tag version to match `desktop/package.json`.
 - Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
 
@@ -94,7 +95,7 @@ Each area can have its own font size: click its size badge in **PDF areas** and 
 
 Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
 
-The editor uses selectable PDF text, not OCR. Hindi stays strictly inside each selected rectangle. The selected size (8–32 pt, default 18 pt) is the maximum; the app wraps and automatically finds the largest fitting size within half a point, down to a 6 pt minimum. The renderer never expands an area, borrows neighboring space, moves Hindi to another area, or adds continuation pages. Only when the text cannot fit even at 6 pt does conversion report the specific area and page that needs more space. Overlapping selections retain their individual boundaries and duplicate source characters are extracted only once. The last selected configuration is remembered in the browser.
+The editor uses selectable PDF text when available. If a selected area has no selectable text but contains an image, it automatically reads that area with offline English OCR. Only the selected crop is recognized; regular PDFs keep their fast text extraction path. OCR data is downloaded once during setup or the app build, and conversion never needs internet access. Hindi stays strictly inside each selected rectangle. The selected size (8–32 pt, default 18 pt) is the maximum; the app wraps and automatically finds the largest fitting size within half a point, down to a 6 pt minimum. The renderer never expands an area, borrows neighboring space, moves Hindi to another area, or adds continuation pages. Only when the text cannot fit even at 6 pt does conversion report the specific area and page that needs more space. Overlapping selections retain their individual boundaries and duplicate source characters are extracted only once. The last selected configuration is remembered in the browser.
 
 The app starts with an empty configuration list. Upload your PDF, then create or choose a configuration for conversion. Deleting the selected configuration keeps the PDF ready while you choose or create another layout.
 

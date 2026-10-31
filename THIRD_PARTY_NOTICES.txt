@@ -1,5 +1,13 @@
 BharatDocs includes the following third-party assets:
 
+Offline English OCR data
+  Tesseract tessdata_fast, Apache License 2.0
+  Original: https://github.com/tesseract-ocr/tessdata_fast
+  Revision: 87416418657359cb625c412a48b6e1d6d41c29bd
+  The full Apache license is included in models/tessdata/LICENSE.
+  Build-time downloads are pinned and verified by scripts/prepare_ocr_data.py.
+  Recognition uses the OCR engine integrated into PyMuPDF / MuPDF.
+
 Hindi transliteration model
   AI4Bharat IndicXlit v1.0, MIT License
   Original: https://github.com/AI4Bharat/IndicXlit

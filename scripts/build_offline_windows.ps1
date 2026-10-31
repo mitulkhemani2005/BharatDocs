@@ -29,8 +29,10 @@ if (-not (Test-Path $RuntimePython)) {
 
 if (-not $SkipModelPreparation) {
     Invoke-Checked $BuildPython @((Join-Path $ProjectRoot "scripts\prepare_offline_model.py"))
+    Invoke-Checked $BuildPython @((Join-Path $ProjectRoot "scripts\prepare_ocr_data.py"))
 } else {
     Invoke-Checked $BuildPython @((Join-Path $ProjectRoot "scripts\prepare_offline_model.py"), "--verify-only")
+    Invoke-Checked $BuildPython @((Join-Path $ProjectRoot "scripts\prepare_ocr_data.py"), "--verify-only")
 }
 
 $FrontendDirectory = Join-Path $ProjectRoot "frontend"
