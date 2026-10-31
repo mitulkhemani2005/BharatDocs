@@ -90,7 +90,7 @@ Upload your PDF first. Then select a configuration or use **New configuration** 
 4. Save the configuration, select it on the main screen, and click **Translate PDF into Hindi**. The areas repeat on every page and scale proportionally with page size. You can choose another configuration and translate the same upload again during its two-hour session.
 5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
 
-Each area can have its own font size: select it in **PDF areas**, then set **Font size for this area** (8–32 pt). The list shows each area's effective size. **Use default** restores inheritance from the configuration's **Default Hindi size**. Individual sizes are saved and applied exactly on every page while text remains inside that area's rectangle.
+Each area can have its own font size: click its size badge in **PDF areas** and type the size directly (8–32 pt). The small reset icon restores the configuration's **Default Hindi size**. **Add area** starts drawing a new selection. Individual sizes are saved and applied exactly on every page while text remains inside that area's rectangle.
 
 Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
 

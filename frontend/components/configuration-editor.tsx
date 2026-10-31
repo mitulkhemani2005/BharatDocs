@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type PointerEvent } from "react"
+import { Plus, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { configurationRequest, getPagePreview, type Configuration, type ConfigurationDraft, type PagePreview, type Rect, type TranslationArea } from "@/lib/api-client"
 
@@ -10,6 +11,22 @@ type Props = { configuration: Configuration | null; initialUploadId?: string | n
 type Tool = "add" | "source" | "move"
 const field = "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"
 const empty: ConfigurationDraft = { name: "", page_width: 0, page_height: 0, font_size: 18, regions: [] }
+
+function InlineFontSize({ value, defaultValue, label, disabled, onFocus, onCommit }: { value: number; defaultValue: number; label: string; disabled: boolean; onFocus: () => void; onCommit: (value: number | null) => void }) {
+  const [text, setText] = useState(String(value))
+  const edited = useRef(false)
+  useEffect(() => setText(String(value)), [value])
+  return <input aria-label={label} type="number" min={8} max={32} step="any" inputMode="decimal" disabled={disabled} value={text} className="w-8 appearance-none bg-transparent p-0 text-center text-xs font-medium outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" onFocus={event => { edited.current = false; onFocus(); event.currentTarget.select() }} onChange={event => { edited.current = true; setText(event.target.value) }} onBlur={event => {
+    if (!edited.current) return
+    const raw = event.currentTarget.value
+    if (raw === "") { onCommit(null); setText(String(defaultValue)) }
+    else if (Number.isFinite(Number(raw)) && Number(raw) >= 8 && Number(raw) <= 32) onCommit(Number(raw))
+    else setText(String(value))
+  }} onKeyDown={event => {
+    if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur() }
+    if (event.key === "Escape") { event.stopPropagation(); edited.current = false; setText(String(value)); event.currentTarget.blur() }
+  }} />
+}
 
 export default function ConfigurationEditor({ configuration, initialUploadId, onClose, onSaved, onDeleted }: Props) {
   const [draft, setDraft] = useState<ConfigurationDraft>(() => configuration ? structuredClone(configuration) : empty)
@@ -162,29 +179,29 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
       <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[300px_1fr]">
         <aside className="space-y-5 border-r bg-white p-5 md:overflow-auto">
           <label className="grid gap-1.5 text-sm font-medium">Configuration name<input className={field} maxLength={80} value={draft.name} onChange={event => change(previous => ({ ...previous, name: event.target.value }))} placeholder="For example, shop bills" /></label>
-          <label className="grid gap-1.5 text-sm font-medium">Default Hindi size (points)<input className={field} type="number" min={8} max={32} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /><span className="text-xs font-normal leading-5 text-slate-500">8–32 pt. Select an area below to give it a different size.</span></label>
+          <label className="grid gap-1.5 text-sm font-medium">Default Hindi size (points)<input className={field} type="number" min={8} max={32} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /><span className="text-xs font-normal leading-5 text-slate-500">8–32 pt. Click a size in the area list to customize it.</span></label>
           <div className="space-y-2 border-t pt-4">
-            <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">PDF areas ({draft.regions.length})</h3><button className="text-sm font-medium text-blue-800 underline" onClick={() => setTool("add")} disabled={!preview}>+ Add area</button></div>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">PDF areas <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{draft.regions.length}</span></h3>
+              <Button size="sm" className="gap-1.5 rounded-lg bg-[#17365d] text-white shadow-sm hover:bg-[#102846]" aria-pressed={tool === "add"} onClick={() => { setTool("add"); setNotice("Drag on the PDF to add a new area.") }} disabled={!preview || busy || draft.regions.length >= 32}><Plus className="size-3.5" aria-hidden="true" />Add area</Button>
+            </div>
             {draft.regions.length === 0 && <p className="text-xs leading-5 text-slate-500">Load a PDF, then drag a rectangle around English text.</p>}
             {draft.regions.map((region, index) => <div key={index} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${selected === index ? "border-blue-600 bg-blue-50" : "border-slate-200"}`}>
               <button className="shrink-0 text-sm" aria-label={`Select area ${index + 1}`} onClick={() => { setSelected(index); setTool("move") }}>{index + 1}.</button>
               <input aria-label={`Rename area ${index + 1}`} className="min-w-0 w-full bg-transparent text-sm outline-none focus:ring-2 focus:ring-blue-500" maxLength={80} value={region.name} onFocus={() => { setSelected(index); setTool("move") }} onChange={event => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === index ? { ...item, name: event.target.value } : item) }))} />
               {region.mode === "preserve" && <span className="text-xs text-red-700">Protected</span>}
-              {region.mode !== "preserve" && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{region.font_size ?? draft.font_size} pt</span>}
+              {region.mode !== "preserve" && <div className="flex shrink-0 items-center gap-1">
+                <label className="flex h-7 cursor-text items-center gap-0.5 rounded-md border border-transparent bg-slate-100 px-1.5 text-slate-700 transition hover:border-slate-300 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100" title={region.font_size == null ? "Using default size. Click to edit." : "Custom font size. Click to edit."}>
+                  <InlineFontSize label={`Font size for area ${index + 1}`} disabled={busy} value={region.font_size ?? draft.font_size} defaultValue={draft.font_size} onFocus={() => { setSelected(index); setTool("move") }} onCommit={value => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === index ? { ...item, font_size: value } : item) }))} />
+                  <span className="text-[10px] text-slate-400" aria-hidden="true">pt</span>
+                </label>
+                {region.font_size != null && <button type="button" disabled={busy} aria-label={`Use default font size for area ${index + 1}`} title={`Reset to default (${draft.font_size} pt)`} className="grid size-6 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-[#17365d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={() => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === index ? { ...item, font_size: null } : item) }))}><RotateCcw className="size-3" aria-hidden="true" /></button>}
+              </div>}
             </div>)}
+            {draft.regions.length > 0 && <p className="pt-1 text-[11px] text-slate-500">Click any area name or font size to edit it.</p>}
           </div>
           {area && <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-medium">Selected: {area.name}</p>
-            {area.mode !== "preserve" && <div className="space-y-2">
-              <label className="grid gap-1.5 text-sm font-medium">Font size for this area (points)
-                <input className={field} type="number" min={8} max={32} value={area.font_size ?? draft.font_size} disabled={busy} onChange={event => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === selected ? { ...item, font_size: Number(event.target.value) } : item) }))} />
-              </label>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-slate-500">{area.font_size == null ? "Using configuration default" : "Custom size for this area"}</span>
-                {area.font_size != null && <button disabled={busy} className="font-medium text-blue-800 underline" onClick={() => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === selected ? { ...item, font_size: null } : item) }))}>Use default</button>}
-              </div>
-              <p className="text-xs leading-5 text-slate-500">The exact size is used on every page, inside this area only.</p>
-            </div>}
             <div className="grid grid-cols-2 gap-2">
               <Button variant={tool === "move" ? "default" : "outline"} disabled={!preview || busy} onClick={() => setTool("move")}>Move area</Button>
               <Button variant="outline" disabled={!preview || busy} onClick={() => setTool("source")}>Redraw area</Button>
