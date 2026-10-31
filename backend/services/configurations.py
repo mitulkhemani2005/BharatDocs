@@ -19,6 +19,7 @@ class Region(BaseModel):
     rect: tuple[float, float, float, float]
     text_rect: tuple[float, float, float, float] | None = None
     mode: Literal["translate", "preserve"] = "translate"
+    font_size: float | None = Field(default=None, ge=8, le=32)
 
 
 class Layout(BaseModel):

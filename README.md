@@ -90,6 +90,8 @@ Upload your PDF first. Then select a configuration or use **New configuration** 
 4. Save the configuration, select it on the main screen, and click **Translate PDF into Hindi**. The areas repeat on every page and scale proportionally with page size. You can choose another configuration and translate the same upload again during its two-hour session.
 5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
 
+Each area can have its own font size: select it in **PDF areas**, then set **Font size for this area** (8–32 pt). The list shows each area's effective size. **Use default** restores inheritance from the configuration's **Default Hindi size**. Individual sizes are saved and applied exactly on every page while text remains inside that area's rectangle.
+
 Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
 
 The editor uses selectable PDF text, not OCR. Hindi stays strictly inside each selected rectangle, wrapping at the exact user-selected font size (8–32 pt, default 18 pt). The renderer never expands an area, borrows neighboring space, moves Hindi to another area, or adds continuation pages. If text cannot fit at that size, conversion reports the specific area and page; increase the selected area or choose a smaller size. Overlapping selections retain their individual boundaries and duplicate source characters are extracted only once. The last selected configuration is remembered in the browser.
@@ -116,6 +118,8 @@ Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is dis
 Configuration requests use the `X-Configuration-Owner` UUID header. A saved `configuration_id` is required in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header. Missing or deleted configurations are rejected; translation always uses the user's selected layout.
 
 Each region supports `mode: "translate"` (the default) or `mode: "preserve"`. Protected regions are excluded from extraction and Hindi placement on every page.
+
+A region's optional `font_size` overrides the configuration size. Omit it or send `null` to use the configuration default.
 
 Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
 

@@ -15,6 +15,40 @@ import json
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_individual_sizes_are_saved_and_printed_with_default_inheritance(self):
+        layout = {**self.layout, 'regions': [
+            {'name': 'Small name', 'rect': [10, 10, 180, 70], 'font_size': 10},
+            {'name': 'Large name', 'rect': [10, 90, 180, 160], 'font_size': 24},
+        ]}
+        created = self.client.post('/configurations', json=layout, headers=self.headers)
+        self.assertEqual(created.status_code, 201, created.text)
+        key = created.json()['id']
+        with fitz.open() as doc:
+            page = doc.new_page(width=300, height=200)
+            page.insert_text((20, 40), 'ASHOK', fontsize=12)
+            page.insert_text((20, 120), 'ASHOK', fontsize=12)
+            source = doc.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('sizes.pdf', source, 'application/pdf')}).json()['upload_id']
+        for default_size, override, expected in ((18, 10, 10), (22, None, 22)):
+            layout['font_size'] = default_size
+            layout['regions'][0]['font_size'] = override
+            self.assertEqual(self.client.put(f'/configurations/{key}', json=layout, headers=self.headers).status_code, 200)
+            loaded = self.client.get('/configurations', headers=self.headers).json()['configurations'][0]
+            self.assertEqual(loaded['regions'][0]['font_size'], override)
+            self.assertEqual(loaded['regions'][1]['font_size'], 24)
+            result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+            self.assertEqual(result.status_code, 200)
+            with fitz.open(stream=result.content, filetype='pdf') as doc:
+                for box, size in (([10, 10, 180, 70], expected), ([10, 90, 180, 160], 24)):
+                    spans = [span for block in doc[0].get_text('dict', clip=fitz.Rect(box))['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
+                    self.assertTrue(spans)
+                    self.assertAlmostEqual(spans[0]['size'], size, delta=.01)
+
+    def test_invalid_individual_size_is_rejected(self):
+        for size in (7, 33):
+            layout = {**self.layout, 'regions': [{**self.layout['regions'][0], 'font_size': size}]}
+            self.assertEqual(self.client.post('/configurations', json=layout, headers=self.headers).status_code, 400)
+
     def test_user_selected_font_size_is_preserved_when_loaded(self):
         key = str(uuid.uuid4())
         old = {**self.layout, 'font_size': 10}

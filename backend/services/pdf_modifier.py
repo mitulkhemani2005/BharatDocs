@@ -154,15 +154,16 @@ def _subtract_rectangles(rectangle, masks):
     return [fitz.Rect(part) for part in pieces]
 
 
-def _plan_selected_areas(page, regions, blockers, prepare, font_size):
+def _plan_selected_areas(page, regions, blockers, prepare):
     orders = [tuple(range(len(regions))),
               tuple(sorted(range(len(regions)), key=lambda i: regions[i][0].get_area() / max(1, len(regions[i][1])))),
               tuple(reversed(range(len(regions))))]
     failed_name = regions[0][2]
+    failed_size = regions[0][3]
     for order in dict.fromkeys(orders):
         plans, placed = {}, []
         for index in order:
-            bbox, text, name = regions[index]
+            bbox, text, name, font_size = regions[index]
             pieces = sorted(_subtract_rectangles(bbox, blockers + placed), key=lambda rect: rect.get_area(), reverse=True)
             found = None
             for piece in pieces:
@@ -170,7 +171,7 @@ def _plan_selected_areas(page, regions, blockers, prepare, font_size):
                     continue
                 for width in ((None, round(piece.width, 2)) if len(text) < 500 else (round(piece.width, 2),)):
                     try:
-                        number, ink = prepare(text, width)
+                        number, ink = prepare(text, width, font_size)
                     except PdfProcessingError:
                         continue
                     if ink.width > piece.width or ink.height > piece.height:
@@ -184,13 +185,14 @@ def _plan_selected_areas(page, regions, blockers, prepare, font_size):
                     break
             if found is None:
                 failed_name = name
+                failed_size = font_size
                 break
             plans[index] = found
             placed.append(found[2] + (-.25, -.25, .25, .25))
         else:
             return plans
     raise LayoutSpaceError(
-        f"Hindi text in '{failed_name}' on page {page.number + 1} cannot fit inside its selected area at {font_size:g} pt. "
+        f"Hindi text in '{failed_name}' on page {page.number + 1} cannot fit inside its selected area at {failed_size:g} pt. "
         "Increase that area's size or select a smaller font size."
     )
 
@@ -202,7 +204,7 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
     output_path = Path(output_pdf_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     archive = fitz.Archive(str(FONT_DIRECTORY))
-    css = _font_css(font_family, font_size)
+    styles = {}
     try:
         with fitz.open(input_pdf_path) as doc, fitz.open() as shaped:
             if doc.needs_pass or doc.is_encrypted:
@@ -219,16 +221,20 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
                 text = region.get("hindi_text", "").strip()
                 bbox = fitz.Rect(region["rect"]) & doc[index].rect
                 if text and not bbox.is_empty:
-                    grouped.setdefault(index, []).append((bbox, text, region.get("region_name", "Area")))
+                    override = region.get("font_size")
+                    size = font_size if override is None else _render_options({"font_family": font_family, "font_size": override})[1]
+                    grouped.setdefault(index, []).append((bbox, text, region.get("region_name", "Area"), size))
             prepared, failed, plans, clear_masks, spans_by_page = {}, set(), {}, {}, {}
 
-            def prepare(text, width):
-                key = (text, width)
+            def prepare(text, width, size):
+                key = (text, width, size)
                 if key in failed:
                     raise LayoutSpaceError("This width cannot accommodate the selected text.")
                 if key not in prepared:
                     try:
-                        prepared[key] = _prepare_hindi_text(shaped, text, font_size, css, archive, width)
+                        if size not in styles:
+                            styles[size] = _font_css(font_family, size)
+                        prepared[key] = _prepare_hindi_text(shaped, text, size, styles[size], archive, width)
                     except PdfProcessingError:
                         failed.add(key)
                         raise
@@ -254,11 +260,11 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
                                              fitz.Rect(rect.x1-.5, rect.y0, rect.x1+.5, rect.y1)))
                 blockers.extend(fitz.Rect(info["bbox"]) for info in page.get_image_info())
                 clear_masks[index] = blockers
-                plans[index] = _plan_selected_areas(page, regions, blockers, prepare, font_size)
+                plans[index] = _plan_selected_areas(page, regions, blockers, prepare)
 
             for index, regions in grouped.items():
                 page = doc[index]
-                for bbox, _text, _name in regions:
+                for bbox, _text, _name, _size in regions:
                     # Even English glyph cleanup cannot paint outside the chosen area.
                     clear = _source_clear_rect(bbox, spans_by_page[index]) & bbox
                     for piece in _subtract_rectangles(clear, clear_masks[index]):

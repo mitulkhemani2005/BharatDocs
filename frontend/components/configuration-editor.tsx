@@ -162,7 +162,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
       <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[300px_1fr]">
         <aside className="space-y-5 border-r bg-white p-5 md:overflow-auto">
           <label className="grid gap-1.5 text-sm font-medium">Configuration name<input className={field} maxLength={80} value={draft.name} onChange={event => change(previous => ({ ...previous, name: event.target.value }))} placeholder="For example, shop bills" /></label>
-          <label className="grid gap-1.5 text-sm font-medium">Hindi font size (points)<input className={field} type="number" min={8} max={32} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /><span className="text-xs font-normal leading-5 text-slate-500">8–32 pt. Your selected size is kept exactly. Hindi wraps only inside its selected area.</span></label>
+          <label className="grid gap-1.5 text-sm font-medium">Default Hindi size (points)<input className={field} type="number" min={8} max={32} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /><span className="text-xs font-normal leading-5 text-slate-500">8–32 pt. Select an area below to give it a different size.</span></label>
           <div className="space-y-2 border-t pt-4">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">PDF areas ({draft.regions.length})</h3><button className="text-sm font-medium text-blue-800 underline" onClick={() => setTool("add")} disabled={!preview}>+ Add area</button></div>
             {draft.regions.length === 0 && <p className="text-xs leading-5 text-slate-500">Load a PDF, then drag a rectangle around English text.</p>}
@@ -170,10 +170,21 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
               <button className="shrink-0 text-sm" aria-label={`Select area ${index + 1}`} onClick={() => { setSelected(index); setTool("move") }}>{index + 1}.</button>
               <input aria-label={`Rename area ${index + 1}`} className="min-w-0 w-full bg-transparent text-sm outline-none focus:ring-2 focus:ring-blue-500" maxLength={80} value={region.name} onFocus={() => { setSelected(index); setTool("move") }} onChange={event => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === index ? { ...item, name: event.target.value } : item) }))} />
               {region.mode === "preserve" && <span className="text-xs text-red-700">Protected</span>}
+              {region.mode !== "preserve" && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{region.font_size ?? draft.font_size} pt</span>}
             </div>)}
           </div>
           {area && <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-medium">Selected: {area.name}</p>
+            {area.mode !== "preserve" && <div className="space-y-2">
+              <label className="grid gap-1.5 text-sm font-medium">Font size for this area (points)
+                <input className={field} type="number" min={8} max={32} value={area.font_size ?? draft.font_size} disabled={busy} onChange={event => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === selected ? { ...item, font_size: Number(event.target.value) } : item) }))} />
+              </label>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-slate-500">{area.font_size == null ? "Using configuration default" : "Custom size for this area"}</span>
+                {area.font_size != null && <button disabled={busy} className="font-medium text-blue-800 underline" onClick={() => change(previous => ({ ...previous, regions: previous.regions.map((item, i) => i === selected ? { ...item, font_size: null } : item) }))}>Use default</button>}
+              </div>
+              <p className="text-xs leading-5 text-slate-500">The exact size is used on every page, inside this area only.</p>
+            </div>}
             <div className="grid grid-cols-2 gap-2">
               <Button variant={tool === "move" ? "default" : "outline"} disabled={!preview || busy} onClick={() => setTool("move")}>Move area</Button>
               <Button variant="outline" disabled={!preview || busy} onClick={() => setTool("source")}>Redraw area</Button>

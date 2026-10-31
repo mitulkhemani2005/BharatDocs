@@ -20,7 +20,7 @@ async function responseError(response: Response, fallback: string) {
 }
 
 export type Rect = [number, number, number, number]
-export type TranslationArea = { name: string; rect: Rect; text_rect?: Rect | null; mode?: "translate" | "preserve" }
+export type TranslationArea = { name: string; rect: Rect; text_rect?: Rect | null; mode?: "translate" | "preserve"; font_size?: number | null }
 export type Configuration = { id: string; name: string; page_width: number; page_height: number; font_size: number; regions: TranslationArea[] }
 export type ConfigurationDraft = Omit<Configuration, "id">
 export type PagePreview = { page: number; page_count: number; width: number; height: number; image: string }

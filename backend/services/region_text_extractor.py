@@ -59,6 +59,7 @@ def extract_text_from_regions(pdf_path, regions):
                         "rect": region["rect"],
                         "text_rect": region.get("text_rect"),
                         "text_offset_y": region.get("text_offset_y", 0),
+                        "font_size": region.get("font_size"),
                         "text": " ".join(collected),
                         "protected_rects": [list(rect) for rect in protected],
                     })
