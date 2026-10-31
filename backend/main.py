@@ -58,9 +58,12 @@ async def handle_api_error(_request: Request, error: APIError):
 async def handle_request_validation(_request: Request, error: RequestValidationError):
     errors = error.errors()
     missing_file = any(tuple(item.get("loc", ())) == ("body", "file") for item in errors)
+    invalid_configuration = any(tuple(item.get("loc", ())) == ("body", "configuration_id") for item in errors)
     message = (
         "Choose a PDF file to upload."
         if missing_file
+        else "Create or select a saved configuration before translating a PDF."
+        if invalid_configuration
         else str(errors[0].get("msg", "Check the submitted settings."))
     )
     return JSONResponse({"error": message}, status_code=HTTP_400_BAD_REQUEST)

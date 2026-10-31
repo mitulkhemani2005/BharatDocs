@@ -80,6 +80,10 @@ export default function BharatDocsApp() {
   }, [showPreview])
 
   const startTranslation = async (file: File) => {
+    if (!configurationId) {
+      setError("Create or select a saved configuration before translating a PDF.")
+      return
+    }
     setSelectedFile(file)
     setError(null)
     setTranslatedBlob(null)
@@ -98,6 +102,10 @@ export default function BharatDocsApp() {
   const selectFile = (file?: File) => {
     if (!file) return
     setError(null)
+    if (!configurationId || configurationsLoading || configurationError) {
+      setError("Create or select a saved configuration before uploading a PDF to translate.")
+      return
+    }
     if (!isDesktopApp && !hasAcceptedTerms) {
       setError("Please confirm you have permission to submit this PDF and review the Terms and Privacy Notice.")
       return
@@ -163,6 +171,7 @@ export default function BharatDocsApp() {
   }
 
   const isBusy = status === "uploading" || status === "processing"
+  const canTranslate = !!configurationId && !configurationsLoading && !configurationError && (isDesktopApp || hasAcceptedTerms)
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -205,7 +214,7 @@ export default function BharatDocsApp() {
               <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
                 <label className="grid gap-2 text-sm font-semibold" htmlFor="configuration-select">Translation configuration
                   <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); handleReset() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
-                    <option value="">Original bill layout (built in)</option>
+                    <option value="" disabled>Select a configuration</option>
                     {configurations.map(configuration => <option key={configuration.id} value={configuration.id}>{configuration.name}</option>)}
                   </select>
                 </label>
@@ -213,7 +222,7 @@ export default function BharatDocsApp() {
                   <Button variant="outline" size="sm" disabled={isBusy || configurationsLoading || !!configurationError} onClick={() => setEditor({ configuration: null })}>New configuration</Button>
                   {configurationId && <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setEditor({ configuration: configurations.find(item => item.id === configurationId) || null })}>Edit / delete</Button>}
                 </div>
-                <p className="text-xs leading-5 text-slate-500">Saved areas apply to every page. Create a configuration to select areas on your own PDF.</p>
+                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create your first configuration to select translation areas, then upload a PDF to translate." : "Choose a saved configuration before uploading. Its selected areas apply to every page."}</p>
                 {configurationError && <p role="alert" className="text-xs text-red-700">{configurationError} <button onClick={loadConfigurations} className="underline">Retry loading configurations</button></p>}
               </div>
               {status === "idle" && !isDesktopApp && (
@@ -283,7 +292,7 @@ export default function BharatDocsApp() {
                 <>
                   <label
                     htmlFor="pdf-upload"
-                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${isDesktopApp || hasAcceptedTerms ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
+                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${canTranslate ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
                   >
                     <span className="grid size-12 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
                       <Upload className="size-5" aria-hidden="true" />
@@ -296,7 +305,7 @@ export default function BharatDocsApp() {
                       id="pdf-upload"
                       type="file"
                       accept=".pdf,application/pdf"
-                      disabled={!isDesktopApp && !hasAcceptedTerms}
+                      disabled={!canTranslate}
                       onChange={handleFileChange}
                       className="sr-only"
                     />

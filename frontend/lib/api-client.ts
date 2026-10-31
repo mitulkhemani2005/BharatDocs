@@ -64,8 +64,9 @@ export async function uploadAndTranslatePdf(
   file: File,
   fontFamily: HindiFont,
   onProcessing: ProcessingCallback,
-  configurationId?: string,
+  configurationId: string,
 ): Promise<Blob> {
+  if (!configurationId) throw new Error("Create or select a saved configuration before translating a PDF.")
   const apiBase = getApiBase()
   const upload = await uploadPdf(file)
 
@@ -73,7 +74,7 @@ export async function uploadAndTranslatePdf(
   const translationResponse = await fetch(`${apiBase}/translate-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...ownerHeaders() },
-    body: JSON.stringify({ upload_id: upload.upload_id, font_family: fontFamily, configuration_id: configurationId || null }),
+    body: JSON.stringify({ upload_id: upload.upload_id, font_family: fontFamily, configuration_id: configurationId }),
   })
   if (!translationResponse.ok) {
     throw new Error(await responseError(translationResponse, "The PDF could not be translated. Please try again."))

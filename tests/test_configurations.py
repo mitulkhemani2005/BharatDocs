@@ -9,6 +9,7 @@ import fitz
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.core.paths import resource_root
 
 
 class ConfigurationTests(unittest.TestCase):
@@ -55,6 +56,32 @@ class ConfigurationTests(unittest.TestCase):
                         self.layout['regions'] + [{'name': 'Overlap', 'rect': [20, 20, 50, 40]}]):
             response = self.client.post('/configurations', json={**self.layout, 'regions': regions}, headers=self.headers)
             self.assertEqual(response.status_code, 400, response.text)
+
+    def test_conversion_requires_an_existing_saved_configuration(self):
+        self.assertEqual(self.client.get('/configurations', headers=self.headers).json()['configurations'], [])
+        with fitz.open() as document:
+            document.new_page(width=300, height=200).insert_text((20, 30), 'ASHOK')
+            source = document.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('bill.pdf', source, 'application/pdf')}).json()['upload_id']
+        for fields in ({}, {'configuration_id': None}, {'configuration_id': ''}):
+            response = self.client.post('/translate-pdf', json={'upload_id': upload_id, **fields}, headers=self.headers)
+            self.assertEqual(response.status_code, 400, response.text)
+            self.assertIn('Create or select a saved configuration', response.json()['error'])
+        for endpoint in ('/extract-regions', '/translate-regions'):
+            response = self.client.get(endpoint, params={'upload_id': upload_id}, headers=self.headers)
+            self.assertEqual(response.status_code, 400)
+        key = self.client.post('/configurations', json=self.layout, headers=self.headers).json()['id']
+        self.client.delete(f'/configurations/{key}', headers=self.headers)
+        response = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+        self.assertEqual(response.status_code, 404)
+
+    def test_packaged_resources_do_not_need_a_bundled_layout(self):
+        resources = Path(self.temporary.name) / 'resources'
+        executable = resources / 'backend' / 'desktop_backend.exe'
+        executable.parent.mkdir(parents=True)
+        (resources / 'hindi_terms.json').write_text('{}', encoding='utf-8')
+        with patch('sys.frozen', True, create=True), patch('sys.executable', str(executable)):
+            self.assertEqual(resource_root(), resources)
 
     def test_preview_and_selected_layout_convert_every_page_at_scaled_coordinates(self):
         with fitz.open() as document:

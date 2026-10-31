@@ -8,7 +8,7 @@ def resource_root():
     if getattr(sys, "frozen", False):
         executable_dir = Path(sys.executable).resolve().parent
         for candidate in (executable_dir, *executable_dir.parents):
-            if (candidate / "config.json").is_file():
+            if (candidate / "hindi_terms.json").is_file():
                 return candidate
         return executable_dir
     return Path(__file__).resolve().parents[2]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import base64
-import math
 import re
 import shutil
 import time
@@ -12,14 +11,13 @@ from typing import Literal
 
 import fitz
 from fastapi import APIRouter, File, UploadFile, Header, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
-from backend.core.config import load_config
 from backend.core.errors import APIError
 from backend.services import configurations
-from backend.core.paths import resource_root, user_documents_root
+from backend.core.paths import user_documents_root
 from backend.services.pdf_modifier import PdfProcessingError, apply_translations_to_pdf
 from backend.services.pdf_reader import PdfValidationError, get_pdf_info
 from backend.services.region_text_extractor import extract_text_from_regions
@@ -30,7 +28,6 @@ from backend.services.translator import TranslationError
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-CONFIG_PATH = resource_root() / "config.json"
 DOCUMENTS_FOLDER = user_documents_root()
 UPLOAD_FOLDER = DOCUMENTS_FOLDER / "Work"
 INPUT_FOLDER = DOCUMENTS_FOLDER / "Input"
@@ -47,7 +44,7 @@ class TranslatePDFRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     upload_id: str
-    configuration_id: str | None = None
+    configuration_id: str = Field(min_length=1)
     font_family: Literal["Noto Sans Devanagari"] | None = None
 
 
@@ -75,57 +72,10 @@ def get_uploaded_pdf(upload_id: str | None) -> tuple[Path, Path]:
 
 
 def get_regions_and_options(configuration_id=None, owner=None) -> tuple[list[dict], dict]:
-    try:
-        config = configurations.conversion_settings(owner, configuration_id) if configuration_id else load_config(CONFIG_PATH)
-    except (OSError, ValueError) as error:
-        logger.exception("Could not read the PDF conversion configuration")
-        raise APIError("The PDF conversion settings could not be loaded.", 500) from error
-
-    regions = config.get("all_pages")
-    if not isinstance(regions, list) or not regions:
-        raise APIError("The PDF conversion settings do not contain any text regions.", 500)
-
-    for index, region in enumerate(regions):
-        rect = region.get("rect") if isinstance(region, dict) else None
-        if (
-            not isinstance(region, dict)
-            or not isinstance(region.get("name"), str)
-            or not isinstance(rect, list)
-            or len(rect) != 4
-        ):
-            raise APIError(f"Text region {index + 1} is configured incorrectly.", 500)
-        try:
-            x0, y0, x1, y1 = (float(value) for value in rect)
-        except (TypeError, ValueError) as error:
-            raise APIError(f"Text region {index + 1} must use numeric coordinates.", 500) from error
-        if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
-            raise APIError(f"Text region {index + 1} must use finite coordinates.", 500)
-        if x0 >= x1 or y0 >= y1:
-            raise APIError(f"Text region {index + 1} has invalid boundaries.", 500)
-        region["rect"] = [x0, y0, x1, y1]
-        destination = region.get("text_rect")
-        if destination is not None:
-            try:
-                if not isinstance(destination, list) or len(destination) != 4:
-                    raise ValueError("Expected four coordinates")
-                dx0, dy0, dx1, dy1 = (float(value) for value in destination)
-                if not all(math.isfinite(value) for value in (dx0, dy0, dx1, dy1)) or dx0 >= dx1 or dy0 >= dy1:
-                    raise ValueError("Invalid placement boundaries")
-            except (TypeError, ValueError) as error:
-                raise APIError(f"Text region {index + 1} has an invalid Hindi text_rect.", 500) from error
-            region["text_rect"] = [dx0, dy0, dx1, dy1]
-        try:
-            text_offset_y = float(region.get("text_offset_y", 0))
-        except (TypeError, ValueError) as error:
-            raise APIError(f"Text region {index + 1} has an invalid vertical text offset.", 500) from error
-        if not math.isfinite(text_offset_y) or abs(text_offset_y) > 10:
-            raise APIError(f"Text region {index + 1} has an invalid vertical text offset.", 500)
-        region["text_offset_y"] = text_offset_y
-
-    text_options = config.get("pdf_text", {})
-    if not isinstance(text_options, dict):
-        raise APIError("The PDF text settings are configured incorrectly.", 500)
-    return regions, text_options
+    if not configuration_id:
+        raise APIError("Create or select a saved configuration before translating a PDF.", 400)
+    config = configurations.conversion_settings(owner, configuration_id)
+    return config["all_pages"], config["pdf_text"]
 
 
 def remove_expired_uploads() -> None:

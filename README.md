@@ -21,7 +21,7 @@ BharatDocs is built for translating configured names, addresses, and other bill 
 - Process translations locally in the Windows desktop app without an external translation API.
 - Store desktop originals and translated copies in the user's Documents folder.
 
-The app targets PDF bills that match the regions in `config.json`; it is not a general-purpose prose translator. Review translated names and amounts before using a document.
+Create and select a saved configuration for your PDF layout before translating. The app translates names, addresses, and bill fields in those areas. Review translated names and amounts before using a document.
 
 ## Build the Windows installer
 
@@ -88,13 +88,13 @@ Use **New configuration** next to the configuration selector to create a reusabl
 2. Select any reference page, then drag rectangles around the English fields to translate.
 3. Select an area in the list to rename, redraw, or delete it. Use **Draw Hindi placement area** to leave extra room for matras or shift Hindi away from nearby labels.
 4. Save the configuration, select it on the main screen, and upload a PDF to translate. The areas repeat on every page and scale proportionally with page size.
-5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy. The built-in original bill layout remains available.
+5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
 
 Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
 
 The editor uses selectable PDF text, not OCR. Keep fields on separate lines in separate areas, and leave enough space for Hindi placement. Same-type rectangles cannot overlap. The last selected configuration is remembered in the browser.
 
-Edit `config.json` to change the source rectangles translated on every page. Coordinates use PDF points in `[x0, y0, x1, y1]` order. A region may use `text_rect` to set a separate Hindi destination rectangle. The `pdf_text` section controls typography; `config_examples/second-bill.json` is an optional alternate layout.
+The app starts with an empty configuration list. Create a configuration in the editor and select it before uploading a PDF for conversion. Deleting the selected configuration requires you to choose or create another one.
 
 Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is distributed under the SIL Open Font License. Keep its accompanying license when redistributing the font. Third-party component licenses are listed in `THIRD_PARTY_NOTICES.txt`.
 
@@ -113,7 +113,7 @@ Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is dis
 | `GET`, `POST` | `/configurations` | List or create saved configurations |
 | `PUT`, `DELETE` | `/configurations/{id}` | Update or delete a saved configuration |
 
-Configuration requests use the `X-Configuration-Owner` UUID header. Pass `configuration_id` in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header to use a saved layout. Omit it to use the bundled layout. Custom layouts do not inherit bill-specific Mobile/GST movement rules from the bundled layout.
+Configuration requests use the `X-Configuration-Owner` UUID header. A saved `configuration_id` is required in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header. Missing or deleted configurations are rejected; translation always uses the user's selected layout.
 
 Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
 
