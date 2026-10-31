@@ -11,8 +11,9 @@ from fastapi.responses import JSONResponse
 from starlette.status import HTTP_400_BAD_REQUEST
 from starlette.middleware.cors import CORSMiddleware
 
-from backend.api.routes import APIError, router
+from backend.api.routes import router
 from backend.core.asyncio_errors import windows_disconnect_handler
+from backend.core.errors import APIError
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -27,7 +28,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BharatDocs API",
     description="Translate configured PDF regions into Hindi.",
-    version="1.0.4",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url=None,
     lifespan=lifespan,
@@ -57,10 +58,13 @@ async def handle_api_error(_request: Request, error: APIError):
 async def handle_request_validation(_request: Request, error: RequestValidationError):
     errors = error.errors()
     missing_file = any(tuple(item.get("loc", ())) == ("body", "file") for item in errors)
+    invalid_configuration = any(tuple(item.get("loc", ())) == ("body", "configuration_id") for item in errors)
     message = (
         "Choose a PDF file to upload."
         if missing_file
-        else "The upload session details are invalid. Please upload the PDF again."
+        else "Create or select a saved configuration before translating a PDF."
+        if invalid_configuration
+        else str(errors[0].get("msg", "Check the submitted settings."))
     )
     return JSONResponse({"error": message}, status_code=HTTP_400_BAD_REQUEST)
 

@@ -17,10 +17,11 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { uploadAndTranslatePdf, type HindiFont } from "@/lib/api-client"
+import { configurationRequest, translateUploadedPdf, uploadPdf, type Configuration, type HindiFont } from "@/lib/api-client"
+import ConfigurationEditor from "@/components/configuration-editor"
 import { legalHref } from "@/lib/legal-links"
 
-type Status = "idle" | "uploading" | "processing" | "complete"
+type Status = "idle" | "ready" | "uploading" | "processing" | "complete"
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 
@@ -28,6 +29,8 @@ export default function BharatDocsApp() {
   const isDesktopApp = process.env.NEXT_PUBLIC_DESKTOP_APP === "1"
   const [status, setStatus] = useState<Status>("idle")
   const fontFamily: HindiFont = "Noto Sans Devanagari"
+  const [uploadId, setUploadId] = useState<string | null>(null)
+  const [pageCount, setPageCount] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,8 +38,31 @@ export default function BharatDocsApp() {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [configurations, setConfigurations] = useState<Configuration[]>([])
+  const [configurationId, setConfigurationId] = useState("")
+  const [editor, setEditor] = useState<{ configuration: Configuration | null } | null>(null)
+  const [configurationError, setConfigurationError] = useState("")
+  const [configurationsLoading, setConfigurationsLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const loadConfigurations = () => {
+    setConfigurationsLoading(true)
+    setConfigurationError("")
+    configurationRequest<{ configurations: Configuration[] }>("/configurations")
+      .then(result => {
+        setConfigurations(result.configurations)
+        const saved = localStorage.getItem("bharatdocs-selected-configuration")
+        setConfigurationId(result.configurations.some(item => item.id === saved) ? saved! : "")
+      })
+      .catch(caught => setConfigurationError(caught.message))
+      .finally(() => setConfigurationsLoading(false))
+  }
+  useEffect(loadConfigurations, [])
+  const chooseConfiguration = (id: string) => {
+    setConfigurationId(id)
+    localStorage.setItem("bharatdocs-selected-configuration", id)
+  }
 
   useEffect(() => {
     if (!previewUrl) return
@@ -56,13 +82,18 @@ export default function BharatDocsApp() {
   }, [showPreview])
 
   const startTranslation = async (file: File) => {
+    if (!configurationId) {
+      setError("Create or select a saved configuration before translating a PDF.")
+      return
+    }
     setSelectedFile(file)
     setError(null)
     setTranslatedBlob(null)
-    setStatus("uploading")
+    if (!uploadId) return
+    setStatus("processing")
 
     try {
-      const blob = await uploadAndTranslatePdf(file, fontFamily, () => setStatus("processing"))
+      const blob = await translateUploadedPdf(uploadId, fontFamily, configurationId)
       setTranslatedBlob(blob)
       setStatus("complete")
     } catch (caughtError) {
@@ -71,8 +102,8 @@ export default function BharatDocsApp() {
     }
   }
 
-  const selectFile = (file?: File) => {
-    if (!file) return
+  const selectFile = async (file?: File) => {
+    if (!file || isBusy) return
     setError(null)
     if (!isDesktopApp && !hasAcceptedTerms) {
       setError("Please confirm you have permission to submit this PDF and review the Terms and Privacy Notice.")
@@ -81,6 +112,7 @@ export default function BharatDocsApp() {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setStatus("idle")
       setSelectedFile(null)
+      setUploadId(null)
       setTranslatedBlob(null)
       setError("Choose a PDF file to continue.")
       return
@@ -88,11 +120,24 @@ export default function BharatDocsApp() {
     if (file.size > MAX_FILE_SIZE) {
       setStatus("idle")
       setSelectedFile(null)
+      setUploadId(null)
       setTranslatedBlob(null)
       setError("This file is larger than 20 MB. Choose a smaller PDF.")
       return
     }
-    void startTranslation(file)
+    setSelectedFile(file)
+    setUploadId(null)
+    setTranslatedBlob(null)
+    setStatus("uploading")
+    try {
+      const uploaded = await uploadPdf(file)
+      setUploadId(uploaded.upload_id)
+      setPageCount(uploaded.page_count)
+      setStatus("ready")
+    } catch (caught) {
+      setStatus("idle")
+      setError(caught instanceof Error ? caught.message : "The PDF could not be uploaded.")
+    }
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,12 +178,16 @@ export default function BharatDocsApp() {
   const handleReset = () => {
     setStatus("idle")
     setSelectedFile(null)
+    setUploadId(null)
     setTranslatedBlob(null)
     setError(null)
     closePreview()
   }
 
   const isBusy = status === "uploading" || status === "processing"
+  const canTranslate = !!uploadId && !!configurationId && !configurationsLoading && !configurationError
+  const canUpload = !isBusy && (isDesktopApp || hasAcceptedTerms)
+  const resetResult = () => { setTranslatedBlob(null); setStatus(uploadId ? "ready" : "idle"); setError(null); closePreview() }
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -178,7 +227,21 @@ export default function BharatDocsApp() {
               className={`mt-8 rounded-2xl border bg-white p-5 transition sm:p-6 ${isDragging ? "border-[#17365d] ring-4 ring-slate-100" : "border-slate-200 shadow-sm"}`}
               aria-live="polite"
             >
-              {status === "idle" && !isDesktopApp && (
+              {uploadId && <div className="mb-5 space-y-3 border-b border-slate-200 pb-5">
+                <label className="grid gap-2 text-sm font-semibold" htmlFor="configuration-select">Translation configuration
+                  <select id="configuration-select" value={configurationId} disabled={isBusy || configurationsLoading} onChange={event => { chooseConfiguration(event.target.value); resetResult() }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal">
+                    <option value="" disabled>Select a configuration</option>
+                    {configurations.map(configuration => <option key={configuration.id} value={configuration.id}>{configuration.name}</option>)}
+                  </select>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" disabled={isBusy || configurationsLoading || !!configurationError} onClick={() => setEditor({ configuration: null })}>New configuration</Button>
+                  {configurationId && <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setEditor({ configuration: configurations.find(item => item.id === configurationId) || null })}>Edit / delete</Button>}
+                </div>
+                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create a configuration using this PDF to select translation areas." : "Choose a saved configuration for this PDF. Its selected areas apply to every page."}</p>
+                {configurationError && <p role="alert" className="text-xs text-red-700">{configurationError} <button onClick={loadConfigurations} className="underline">Retry loading configurations</button></p>}
+              </div>}
+              {(status === "idle" || status === "ready") && !isDesktopApp && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl bg-slate-50 px-3.5 py-3">
                   <input
                     id="accept-terms"
@@ -245,29 +308,58 @@ export default function BharatDocsApp() {
                 <>
                   <label
                     htmlFor="pdf-upload"
-                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${isDesktopApp || hasAcceptedTerms ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
+                    className={`group block overflow-hidden rounded-2xl border transition duration-200 has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-blue-100 ${canUpload ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-blue-500 bg-blue-50 ring-4 ring-blue-100" : uploadId ? "border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md" : "border-dashed border-slate-300 bg-slate-50/60 hover:border-[#17365d] hover:bg-slate-50"}`}
                   >
-                    <span className="grid size-12 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
-                      <Upload className="size-5" aria-hidden="true" />
-                    </span>
-                    <span className="mt-4 text-base font-semibold text-slate-900">Choose a PDF to translate</span>
-                    <span className="mt-1 text-sm text-slate-500">Drop it here or <span className="font-medium text-[#17365d] underline underline-offset-2">browse files</span></span>
-                    <span className="mt-4 text-xs text-slate-500">PDF only · Up to 20 MB</span>
+                    {uploadId && selectedFile ? (
+                      <>
+                        <span className="flex items-center justify-between gap-3 px-5 pt-5">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Your document</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 className="size-3.5" aria-hidden="true" /> Added</span>
+                        </span>
+                        <span className="flex min-w-0 items-center gap-4 px-5 pb-5 pt-4">
+                          <span className="relative grid h-16 w-14 shrink-0 place-items-center rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 text-[#17365d] shadow-sm">
+                            <FileText className="size-7" strokeWidth={1.5} aria-hidden="true" />
+                            <span className="absolute -bottom-1.5 rounded bg-[#17365d] px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-white">PDF</span>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[16px] font-semibold tracking-tight text-slate-900" title={selectedFile.name}>{selectedFile.name}</span>
+                            <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                              <span>{selectedFile.size < 1024 * 1024 ? `${Math.max(1, Math.round(selectedFile.size / 1024))} KB` : `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`}</span>
+                              {pageCount > 0 && <><span aria-hidden="true" className="text-slate-300">•</span><span>{pageCount} {pageCount === 1 ? "page" : "pages"}</span></>}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5">
+                          <span className="text-xs leading-5 text-slate-500">{isDragging ? "Drop to replace this document" : "Drop another PDF here to replace it"}</span>
+                          <span className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#17365d] shadow-sm transition group-hover:border-slate-300 group-hover:bg-slate-50"><RotateCcw className="size-3.5" aria-hidden="true" /> Change PDF</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span className="flex flex-col items-center px-5 py-8 text-center sm:py-9">
+                        <span className="mb-4 grid size-14 place-items-center rounded-2xl border border-white bg-white text-[#17365d] shadow-sm ring-1 ring-slate-200/70"><Upload className="size-6" strokeWidth={1.5} aria-hidden="true" /></span>
+                        <span className="text-base font-semibold tracking-tight text-slate-900">{isDragging ? "Drop your PDF here" : "Add your PDF document"}</span>
+                        <span className="mt-1.5 text-sm text-slate-500">Drag and drop your file to get started</span>
+                        <span className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#17365d] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition group-hover:bg-[#102846]">Browse files <ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                        <span className="mt-4 text-[11px] text-slate-400">PDF documents only · Maximum 20 MB</span>
+                      </span>
+                    )}
                     <input
                       ref={fileInputRef}
                       id="pdf-upload"
                       type="file"
                       accept=".pdf,application/pdf"
-                      disabled={!isDesktopApp && !hasAcceptedTerms}
+                      aria-label={uploadId ? "Change PDF document" : "Choose PDF document"}
+                      disabled={!canUpload}
                       onChange={handleFileChange}
                       className="sr-only"
                     />
                   </label>
+                  {uploadId && <Button className="mt-4 h-11 w-full bg-[#17365d] text-white" disabled={!canTranslate} onClick={() => selectedFile && void startTranslation(selectedFile)}>Translate PDF into Hindi</Button>}
                   {error && (
                     <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800" role="alert">
                       <span className="mt-0.5 size-2 shrink-0 rounded-full bg-red-500" />
                       <span className="flex-1">{error}</span>
-                      {selectedFile && <button className="shrink-0 font-semibold underline underline-offset-2" onClick={() => void startTranslation(selectedFile)}>Retry</button>}
+                      {selectedFile && <button className="shrink-0 font-semibold underline underline-offset-2" onClick={() => uploadId ? void startTranslation(selectedFile) : void selectFile(selectedFile)}>Retry</button>}
                     </div>
                   )}
                 </>
@@ -292,7 +384,7 @@ export default function BharatDocsApp() {
                 </li>
                 <li className="flex gap-4 py-5">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">02</span>
-                  <div><h3 className="font-semibold text-slate-800">Let BharatDocs translate</h3><p className="mt-1 text-sm leading-6 text-slate-500">English text in the configured fields is translated to Hindi.</p></div>
+                  <div><h3 className="font-semibold text-slate-800">Choose a configuration</h3><p className="mt-1 text-sm leading-6 text-slate-500">Select or create a layout, then translate its selected areas into Hindi.</p></div>
                 </li>
                 <li className="flex gap-4 py-5">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">03</span>
@@ -338,6 +430,17 @@ export default function BharatDocsApp() {
           </section>
         </div>
       )}
+      {editor && <ConfigurationEditor configuration={editor.configuration} initialUploadId={uploadId} onClose={() => setEditor(null)} onSaved={saved => {
+        setConfigurations(previous => [saved, ...previous.filter(item => item.id !== saved.id)])
+        chooseConfiguration(saved.id)
+        setEditor(null)
+        resetResult()
+      }} onDeleted={id => {
+        setConfigurations(previous => previous.filter(item => item.id !== id))
+        if (configurationId === id) chooseConfiguration("")
+        setEditor(null)
+        resetResult()
+      }} />}
     </main>
   )
 }

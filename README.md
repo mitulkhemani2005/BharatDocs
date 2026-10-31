@@ -2,7 +2,7 @@
 
 **Offline English-to-Hindi PDF field translation for Windows and the web.**
 
-[Download the Windows installer (v1.0.4)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v1.0.4/BharatDocs-Setup-1.0.4.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v1.0.4) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
+[Download the Windows installer (v2.0.0)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v2.0.0/BharatDocs-Setup-2.0.0.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v2.0.0) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
 
 [![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml)
 
@@ -21,7 +21,7 @@ BharatDocs is built for translating configured names, addresses, and other bill 
 - Process translations locally in the Windows desktop app without an external translation API.
 - Store desktop originals and translated copies in the user's Documents folder.
 
-The app targets PDF bills that match the regions in `config.json`; it is not a general-purpose prose translator. Review translated names and amounts before using a document.
+Upload a PDF, then create or select a saved configuration before translating. The app translates names, addresses, and bill fields in the selected areas. Review translated names and amounts before using a document.
 
 ## Build the Windows installer
 
@@ -74,14 +74,29 @@ Docker deployment files are provided for the API and web client. See [DEPLOYMENT
 
 ## Repository automation
 
+- Install `requirements-dev.txt` to run the backend tests locally; it includes the HTTP client used by the API tests.
 - GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
-- Pushing a version tag such as `v1.0.4` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
+- Pushing a version tag such as `v2.0.0` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
 - The release workflow expects the tag version to match `desktop/package.json`.
 - Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
 
 ## Configure PDF regions
 
-Edit `config.json` to change the source rectangles translated on every page. Coordinates use PDF points in `[x0, y0, x1, y1]` order. A region may use `text_rect` to set a separate Hindi destination rectangle. The `pdf_text` section controls typography; `config_examples/second-bill.json` is an optional alternate layout.
+Upload your PDF first. Then select a configuration or use **New configuration** to create a reusable layout from that PDF:
+
+1. Enter a name. The uploaded English PDF opens automatically as the reference.
+2. Select any reference page, then drag rectangles around the English fields to translate.
+3. Use **+ Add area** to draw each translation area. Every area stays separately listed and numbered. Content outside the selected areas stays unchanged. Rename areas directly in the PDF areas list. Select **Move area** and drag the selected rectangle to reposition it; **Redraw area** changes its size. **Delete selected area** is below these controls, and **Delete configuration** is in the header.
+4. Save the configuration, select it on the main screen, and click **Translate PDF into Hindi**. The areas repeat on every page and scale proportionally with page size. You can choose another configuration and translate the same upload again during its two-hour session.
+5. Use **Edit / delete** to update or remove a configuration, or **Save as new** to keep a separate copy.
+
+Each area can have its own font size: click its size badge in **PDF areas** and type the size directly (8–32 pt). The small reset icon restores the configuration's **Default Hindi size**. **Add area** starts drawing a new selection. Individual sizes are saved as the maximum for each area. The app uses that size when it fits, otherwise automatically reduces it (down to 6 pt) while keeping text inside the same rectangle.
+
+Saved layouts are stored in `Documents/BharatDocs/Configurations/layouts.sqlite3` (or the configured `BHARATDOCS_DOCUMENTS` directory). They survive app restarts and work offline in the desktop app. The web app uses a random browser storage key to scope saved layouts on the API server; use the same browser to access them. Clearing browser storage loses that browser's association with its saved layouts. This key is not account authentication; public hosting still needs access controls as described in DEPLOYMENT.md.
+
+The editor uses selectable PDF text, not OCR. Hindi stays strictly inside each selected rectangle. The selected size (8–32 pt, default 18 pt) is the maximum; the app wraps and automatically finds the largest fitting size within half a point, down to a 6 pt minimum. The renderer never expands an area, borrows neighboring space, moves Hindi to another area, or adds continuation pages. Only when the text cannot fit even at 6 pt does conversion report the specific area and page that needs more space. Overlapping selections retain their individual boundaries and duplicate source characters are extracted only once. The last selected configuration is remembered in the browser.
+
+The app starts with an empty configuration list. Upload your PDF, then create or choose a configuration for conversion. Deleting the selected configuration keeps the PDF ready while you choose or create another layout.
 
 Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is distributed under the SIL Open Font License. Keep its accompanying license when redistributing the font. Third-party component licenses are listed in `THIRD_PARTY_NOTICES.txt`.
 
@@ -96,6 +111,15 @@ Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is dis
 | `GET` | `/extract-regions?upload_id=...` | Extract configured text |
 | `GET` | `/translate-regions?upload_id=...` | Translate configured text as JSON |
 | `POST` | `/translate-pdf` | Create and return a translated PDF |
+| `GET` | `/pdf-page?upload_id=...&page=1` | Render a reference page for drawing areas |
+| `GET`, `POST` | `/configurations` | List or create saved configurations |
+| `PUT`, `DELETE` | `/configurations/{id}` | Update or delete a saved configuration |
+
+Configuration requests use the `X-Configuration-Owner` UUID header. A saved `configuration_id` is required in the `/translate-pdf` JSON body (or extraction endpoint query parameters) with the same header. Missing or deleted configurations are rejected; translation always uses the user's selected layout.
+
+Each region supports `mode: "translate"` (the default) or `mode: "preserve"`. Protected regions are excluded from extraction and Hindi placement on every page.
+
+A region's optional `font_size` overrides the configuration size. Omit it or send `null` to use the configuration default.
 
 Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
 

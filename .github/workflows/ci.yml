@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -20,8 +20,10 @@ jobs:
         with:
           python-version: "3.10"
           cache: pip
-          cache-dependency-path: requirements.txt
-      - run: python -m pip install -r requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
       - run: python -m unittest discover -s tests -v
 
   frontend:
@@ -37,6 +39,8 @@ jobs:
       - run: npm ci
         working-directory: frontend
       - run: npm run typecheck
+        working-directory: frontend
+      - run: node scripts/test-area-layout.mjs
         working-directory: frontend
       - run: npm run brand:build
         working-directory: frontend

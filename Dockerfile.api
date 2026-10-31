@@ -13,7 +13,7 @@ RUN python -m pip install --upgrade pip && python -m pip install -r requirements
 
 COPY backend ./backend
 COPY scripts/prepare_offline_model.py ./scripts/prepare_offline_model.py
-COPY config.json hindi_terms.json LICENSE.txt THIRD_PARTY_NOTICES.txt ./
+COPY hindi_terms.json LICENSE.txt THIRD_PARTY_NOTICES.txt ./
 COPY fonts ./fonts
 RUN python scripts/prepare_offline_model.py
 
