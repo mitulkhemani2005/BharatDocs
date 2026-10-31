@@ -49,4 +49,4 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem release -Filter "BharatDocs-Setup-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          gh release create $env:GITHUB_REF_NAME $installer.FullName "$($installer.FullName).sha256" --title "BharatDocs $env:GITHUB_REF_NAME" --generate-notes
+          gh release create $env:GITHUB_REF_NAME $installer.FullName "$($installer.FullName).sha256" --title "BharatDocs $env:GITHUB_REF_NAME" --generate-notes --latest

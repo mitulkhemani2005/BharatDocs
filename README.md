@@ -2,9 +2,9 @@
 
 **Offline English-to-Hindi PDF field translation for Windows and the web.**
 
-[Download the latest Windows release](https://github.com/mitulkhemani2005/BharatDocs/releases/latest) · [View all releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
+[Download the Windows installer (v1.0.4)](https://github.com/mitulkhemani2005/BharatDocs/releases/download/v1.0.4/BharatDocs-Setup-1.0.4.exe) · [Release notes and checksum](https://github.com/mitulkhemani2005/BharatDocs/releases/tag/v1.0.4) · [All releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE.txt) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
 
-[![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/mitulkhemani2005/BharatDocs)](https://github.com/mitulkhemani2005/BharatDocs/releases)
+[![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml)
 
 BharatDocs converts text in configured PDF fields to Hindi. It includes an offline Windows desktop app, a separate Next.js web client, and a FastAPI service. The web client and API run as independent services; the API root does not serve the frontend.
 
@@ -101,4 +101,4 @@ Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes Open
 
 ## Licensing
 
-The BharatDocs application source is proprietary and all rights are reserved. Third-party components and bundled fonts remain under their respective licenses. See [LICENSE](LICENSE) and `THIRD_PARTY_NOTICES.txt`.
+The BharatDocs application source is proprietary and all rights are reserved. Third-party components and bundled fonts remain under their respective licenses. See [LICENSE](LICENSE.txt) and `THIRD_PARTY_NOTICES.txt`.
