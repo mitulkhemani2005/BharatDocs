@@ -9,10 +9,10 @@ import { resolveAreaOverlap } from "@/lib/area-layout"
 type Props = { configuration: Configuration | null; initialUploadId?: string | null; onClose: () => void; onSaved: (configuration: Configuration) => void; onDeleted: (id: string) => void }
 type Tool = "add" | "source" | "move"
 const field = "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"
-const empty: ConfigurationDraft = { name: "", page_width: 0, page_height: 0, font_size: 14, regions: [] }
+const empty: ConfigurationDraft = { name: "", page_width: 0, page_height: 0, font_size: 18, regions: [] }
 
 export default function ConfigurationEditor({ configuration, initialUploadId, onClose, onSaved, onDeleted }: Props) {
-  const [draft, setDraft] = useState<ConfigurationDraft>(() => configuration ? structuredClone(configuration) : empty)
+  const [draft, setDraft] = useState<ConfigurationDraft>(() => configuration ? { ...structuredClone(configuration), font_size: Math.max(18, configuration.font_size) } : empty)
   const uploadId = initialUploadId || null
   const [page, setPage] = useState(1)
   const [preview, setPreview] = useState<PagePreview | null>(null)
@@ -124,7 +124,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
         names.add(name)
         return { ...region, name }
       })
-      const body: ConfigurationDraft = { name: draft.name, page_width: draft.page_width, page_height: draft.page_height, font_size: draft.font_size, regions }
+      const body: ConfigurationDraft = { name: draft.name, page_width: draft.page_width, page_height: draft.page_height, font_size: Math.max(18, draft.font_size), regions }
       const id = configuration && !asNew ? configuration.id : null
       const saved = await configurationRequest<Configuration>(id ? `/configurations/${id}` : "/configurations", id ? "PUT" : "POST", body)
       onSaved(saved)
@@ -162,7 +162,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
       <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[300px_1fr]">
         <aside className="space-y-5 border-r bg-white p-5 md:overflow-auto">
           <label className="grid gap-1.5 text-sm font-medium">Configuration name<input className={field} maxLength={80} value={draft.name} onChange={event => change(previous => ({ ...previous, name: event.target.value }))} placeholder="For example, shop bills" /></label>
-          <label className="grid gap-1.5 text-sm font-medium">Hindi font size (points)<input className={field} type="number" min={8} max={18} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /></label>
+          <label className="grid gap-1.5 text-sm font-medium">Preferred Hindi size (points)<input className={field} type="number" min={18} max={32} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /><span className="text-xs font-normal leading-5 text-slate-500">18–32 pt. The app tries this size across all areas before using a smaller fit.</span></label>
           <div className="space-y-2 border-t pt-4">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">PDF areas ({draft.regions.length})</h3><button className="text-sm font-medium text-blue-800 underline" onClick={() => setTool("add")} disabled={!preview}>+ Add area</button></div>
             {draft.regions.length === 0 && <p className="text-xs leading-5 text-slate-500">Load a PDF, then drag a rectangle around English text.</p>}

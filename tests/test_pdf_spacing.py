@@ -13,6 +13,19 @@ from backend.services.pdf_modifier import (
 
 
 class HindiSpacingTests(unittest.TestCase):
+    def test_shared_space_is_tried_at_large_size_before_compacting(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            with fitz.open() as doc:
+                page = doc.new_page(width=300, height=180)
+                page.insert_text((20, 60), 'NAME', fontsize=8)
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': [15, 50, 45, 65], 'hindi_text': 'अशोक किराना'}])
+            with fitz.open(output) as doc:
+                spans = [span for block in doc[0].get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
+                self.assertTrue(spans)
+                self.assertGreaterEqual(spans[0]['size'], 17.09)
+
     def test_fast_clipping_preserves_exact_unmasked_coverage(self):
         rng = random.Random(42)
         for _ in range(40):

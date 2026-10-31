@@ -13,7 +13,7 @@ FONT_FILES = {
 }
 DEFAULT_TEXT_OPTIONS = {
     "font_family": "Noto Sans Devanagari",
-    "font_size": 14,
+    "font_size": 18,
     "vertical_padding": 2,
     "minimum_scale": 0.7,
 }
@@ -39,8 +39,8 @@ def _render_options(options):
     except (TypeError, ValueError) as error:
         raise PdfProcessingError("Hindi PDF text settings must be numeric.") from error
 
-    if not 8 <= font_size <= 18:
-        raise PdfProcessingError("Hindi PDF font size must be between 8 and 18 points.")
+    if not 8 <= font_size <= 32:
+        raise PdfProcessingError("Hindi PDF font size must be between 8 and 32 points.")
     if not 0 <= vertical_padding <= 3:
         raise PdfProcessingError("Hindi PDF vertical padding must be between 0 and 3 points.")
     if not 0.5 <= minimum_scale <= 1:
@@ -195,7 +195,7 @@ def _automatic_destination(page, seed, blockers, font_size):
     return max(pieces, key=lambda rect: rect.get_area())
 
 
-def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=False):
+def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=False, scale_floor=.95):
     """Retry the entire group so a tight field can borrow unused neighboring space."""
     group = fitz.Rect(seeds[0])
     for seed in seeds[1:]:
@@ -236,9 +236,9 @@ def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistrib
                         # path; failing a single shaping attempt must not abort it.
                         continue
                     scale = min(1, destination.width / ink.width, destination.height / ink.height)
-                    if scale + 1e-6 < min(1, 8 / font_size):
+                    if scale + 1e-6 < scale_floor:
                         continue
-                    fitted = _fit_text_rect(destination, ink, min(1, 8 / font_size) - 1e-6)
+                    fitted = _fit_text_rect(destination, ink, scale_floor - 1e-6)
                     target_y = min(max((seeds[index].y0 + seeds[index].y1 - fitted.height) / 2, destination.y0), destination.y1 - fitted.height)
                     dy = target_y - fitted.y0
                     fitted += (0, dy, 0, dy)
@@ -377,10 +377,14 @@ def apply_translations_to_pdf(
                     try:
                         page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=True)
                     except LayoutSpaceError:
-                        # Keep this original bill intact and provide every Hindi field
-                        # at full size on labeled continuation pages. Never drop text.
-                        overflow[page_index] = regions
-                        continue
+                        try:
+                            # Reduce size only after trying shared space at the preferred
+                            # size. Keep compact bill text at least 12pt (or its explicit
+                            # smaller size for legacy engine callers).
+                            page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=True, scale_floor=min(1, 12 / font_size))
+                        except LayoutSpaceError:
+                            overflow[page_index] = regions
+                            continue
                 plans.update({(page_index, index): placement for index, placement in page_plan.items()})
 
             # Finish shaping every continuation page before importing text_doc resources.

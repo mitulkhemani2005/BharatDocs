@@ -10,9 +10,19 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.core.paths import resource_root
+from backend.services.configurations import database
+import json
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_old_small_font_layout_is_upgraded_when_loaded(self):
+        key = str(uuid.uuid4())
+        old = {**self.layout, 'font_size': 10}
+        with database() as connection:
+            connection.execute('INSERT INTO layouts VALUES (?, ?, ?)', (key, self.headers['X-Configuration-Owner'], json.dumps(old)))
+        loaded = self.client.get('/configurations', headers=self.headers).json()['configurations'][0]
+        self.assertEqual(loaded['font_size'], 18)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         root = Path(self.temporary.name)
@@ -25,7 +35,7 @@ class ConfigurationTests(unittest.TestCase):
             replacement.start()
         self.client = TestClient(app)
         self.headers = {'X-Configuration-Owner': str(uuid.uuid4())}
-        self.layout = {'name': 'Shop bills', 'page_width': 300, 'page_height': 200, 'font_size': 14,
+        self.layout = {'name': 'Shop bills', 'page_width': 300, 'page_height': 200, 'font_size': 18,
                        'regions': [{'name': 'Shop name', 'rect': [10, 10, 180, 40], 'text_rect': [10, 45, 180, 65]}]}
 
     def tearDown(self):
