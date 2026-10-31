@@ -3,27 +3,32 @@
     "font_family": "Noto Sans Devanagari",
     "font_size": 14,
     "vertical_padding": 2,
-    "minimum_scale": 0.7
+    "minimum_scale": 0.7,
+    "move_regions": [
+      {"rect": [126, 92, 296, 102], "destination": [190, 101, 295, 113]},
+      {"rect": [126, 507.1, 296, 517.1], "destination": [190, 516.1, 295, 528.1]}
+    ]
   },
   "all_pages": [
     {
       "name": "rectangle1",
       "rect": [96, 68, 296, 77],
-      "text_offset_y": 2
+      "text_rect": [96, 69.5, 295, 82.8]
     },
     {
       "name": "rectangle2",
-      "rect": [33, 81, 296, 90]
+      "rect": [33, 81, 296, 90],
+      "text_rect": [96, 84.4, 295, 98.5]
     },
     {
       "name": "rectangle3",
       "rect": [96, 484, 296, 495],
-      "text_offset_y": 2
+      "text_rect": [96, 484.6, 295, 497.9]
     },
     {
       "name": "rectangle4",
       "rect": [33, 497, 296, 506],
-      "text_offset_y": 2
+      "text_rect": [96, 499.5, 295, 513.6]
     }
   ]
 }

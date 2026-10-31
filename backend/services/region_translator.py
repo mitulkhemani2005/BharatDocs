@@ -10,6 +10,7 @@ def translate_regions(extracted_regions):
             "page": item["page"],
             "region_name": item["region_name"],
             "rect": item["rect"],
+            "text_rect": item.get("text_rect"),
             "text_offset_y": item.get("text_offset_y", 0),
             "english_text": item["text"],
             "hindi_text": hindi_text

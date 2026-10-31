@@ -76,7 +76,9 @@ The `pdf_text` section controls output typography:
 }
 ```
 
-An individual region may include `text_offset_y` to shift its Hindi line vertically while leaving the cleared source area unchanged.
+Each region can specify `text_rect` as a separate destination for the Hindi line. Its `rect` continues to select the English source text. Hindi is shaped with full line height, measured including upper and lower matras, then fitted uniformly inside `text_rect`. The output keeps vector text and embedded fonts. The active layout gives the name and address separate rows with a clear gap; `pdf_text.move_regions` repositions the original mobile label and number into the lower right without overlapping GST details. These moves copy the original text, preserving phone numbers.
+
+For layouts without `text_rect`, `vertical_padding` and the optional per-region `text_offset_y` control the destination. Text that cannot fit above `minimum_scale` produces an error instead of overlapping neighboring fields.
 
 The PDF uses the bundled Noto Sans Devanagari Regular font at normal weight for clear, non-bold Hindi. The font is distributed under the SIL Open Font License; its license is included beside the font file. Keep the font and license when deploying.
 
@@ -115,6 +117,6 @@ Build on a Windows x64 computer while online. The first build downloads the tran
 powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
 ```
 
-The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.2.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
+The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.3.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
 
 The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.

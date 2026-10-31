@@ -100,6 +100,17 @@ def get_regions_and_options() -> tuple[list[dict], dict]:
         if x0 >= x1 or y0 >= y1:
             raise APIError(f"Text region {index + 1} has invalid boundaries.", 500)
         region["rect"] = [x0, y0, x1, y1]
+        destination = region.get("text_rect")
+        if destination is not None:
+            try:
+                if not isinstance(destination, list) or len(destination) != 4:
+                    raise ValueError("Expected four coordinates")
+                dx0, dy0, dx1, dy1 = (float(value) for value in destination)
+                if not all(math.isfinite(value) for value in (dx0, dy0, dx1, dy1)) or dx0 >= dx1 or dy0 >= dy1:
+                    raise ValueError("Invalid placement boundaries")
+            except (TypeError, ValueError) as error:
+                raise APIError(f"Text region {index + 1} has an invalid Hindi text_rect.", 500) from error
+            region["text_rect"] = [dx0, dy0, dx1, dy1]
         try:
             text_offset_y = float(region.get("text_offset_y", 0))
         except (TypeError, ValueError) as error:

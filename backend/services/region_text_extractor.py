@@ -33,6 +33,7 @@ def extract_text_from_regions(pdf_path, regions):
                         "page": page_index,
                         "region_name": region["name"],
                         "rect": region["rect"],
+                        "text_rect": region.get("text_rect"),
                         "text_offset_y": region.get("text_offset_y", 0),
                         "text": " ".join(collected),
                     })
