@@ -1,0 +1,52 @@
+name: Windows Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check release version
+        shell: pwsh
+        run: |
+          $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
+          if ($env:GITHUB_REF_NAME -ne "v$($package.version)") {
+            throw "Tag $env:GITHUB_REF_NAME must match desktop/package.json version v$($package.version)."
+          }
+      - name: Build Windows installer
+        shell: pwsh
+        run: .\scripts\build_offline_windows.ps1
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter "BharatDocs-Setup-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $installer) { throw "The installer was not produced." }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter "BharatDocs-Setup-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          gh release create $env:GITHUB_REF_NAME $installer.FullName "$($installer.FullName).sha256" --title "BharatDocs $env:GITHUB_REF_NAME" --generate-notes
