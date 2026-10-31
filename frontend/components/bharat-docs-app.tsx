@@ -237,7 +237,7 @@ export default function BharatDocsApp() {
                   <Button variant="outline" size="sm" disabled={isBusy || configurationsLoading || !!configurationError} onClick={() => setEditor({ configuration: null })}>New configuration</Button>
                   {configurationId && <Button variant="outline" size="sm" disabled={isBusy} onClick={() => setEditor({ configuration: configurations.find(item => item.id === configurationId) || null })}>Edit / delete</Button>}
                 </div>
-                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create a configuration using this PDF to select translation and protected areas." : "Choose a saved configuration for this PDF. Its selected areas apply to every page."}</p>
+                <p className="text-xs leading-5 text-slate-500">{configurations.length === 0 ? "Create a configuration using this PDF to select translation areas." : "Choose a saved configuration for this PDF. Its selected areas apply to every page."}</p>
                 {configurationError && <p role="alert" className="text-xs text-red-700">{configurationError} <button onClick={loadConfigurations} className="underline">Retry loading configurations</button></p>}
               </div>}
               {(status === "idle" || status === "ready") && !isDesktopApp && (

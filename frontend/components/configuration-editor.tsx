@@ -7,7 +7,7 @@ import { configurationRequest, getPagePreview, type Configuration, type Configur
 import { resolveAreaOverlap } from "@/lib/area-layout"
 
 type Props = { configuration: Configuration | null; initialUploadId?: string | null; onClose: () => void; onSaved: (configuration: Configuration) => void; onDeleted: (id: string) => void }
-type Tool = "add" | "preserve" | "source" | "destination" | "move"
+type Tool = "add" | "source" | "move"
 const field = "h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"
 const empty: ConfigurationDraft = { name: "", page_width: 0, page_height: 0, font_size: 14, regions: [] }
 
@@ -71,9 +71,9 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
       if (hit >= 0) setSelected(hit)
       return
     }
-    const index = (tool === "add" || tool === "preserve") ? draft.regions.length : selected
+    const index = (tool === "add") ? draft.regions.length : selected
     if (index >= 32) { setError("You can add up to 32 translation areas."); return }
-    if (tool !== "add" && tool !== "preserve" && !area) return
+    if (tool !== "add" && !area) return
     const target = "rect" as const
     drag.current = { start: position, index, target, rect: tool === "move" ? [...area.rect] : undefined }
     setPending(tool === "move" ? [...area.rect] : [...position, ...position] as Rect)
@@ -96,15 +96,15 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
     if (active && pending && pending[2] - pending[0] >= 2 && pending[3] - pending[1] >= 2) {
       const rect = pending
       let regions = [...draft.regions]
-      if (tool === "add" || tool === "preserve") {
+      if (tool === "add") {
         let number = regions.length + 1
         while (regions.some(region => region.name === `Area ${number}`)) number++
-        regions.push({ name: `Area ${number}`, rect, mode: tool === "preserve" ? "preserve" : "translate" })
+        regions.push({ name: `Area ${number}`, rect, mode: "translate" })
       } else regions[active.index] = { ...regions[active.index], rect, text_rect: null }
       const result = resolveAreaOverlap(regions, active.index, draft.page_width, draft.page_height, tool === "move")
       change(previous => ({ ...previous, regions: result.regions }))
       setSelected(result.selected)
-      setNotice(result.adjusted ? result.merged ? "Overlapping areas combined automatically." : "Area snapped to the nearest free position." : "")
+      setNotice(result.adjusted ? "Area snapped to the nearest free position." : "")
       setTool("move")
     }
     drag.current = null
@@ -116,7 +116,6 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
     try {
       // Send only editable fields; an existing layout's id is never part of its body.
       let regions = draft.regions.map(region => ({ ...region, text_rect: null })) as TranslationArea[]
-      for (let index = 0; index < regions.length; index++) regions = resolveAreaOverlap(regions, index, draft.page_width, draft.page_height).regions
       const names = new Set<string>()
       regions = regions.map((region, index) => {
         const base = region.name.trim() || `Area ${index + 1}`
@@ -165,7 +164,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
           <label className="grid gap-1.5 text-sm font-medium">Configuration name<input className={field} maxLength={80} value={draft.name} onChange={event => change(previous => ({ ...previous, name: event.target.value }))} placeholder="For example, shop bills" /></label>
           <label className="grid gap-1.5 text-sm font-medium">Hindi font size (points)<input className={field} type="number" min={8} max={18} value={draft.font_size} onChange={event => change(previous => ({ ...previous, font_size: Number(event.target.value) }))} /></label>
           <div className="space-y-2 border-t pt-4">
-            <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">PDF areas ({draft.regions.length})</h3><button className="text-sm font-medium text-blue-800 underline" onClick={() => setTool("add")} disabled={!preview}>+ Translate</button></div>
+            <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">PDF areas ({draft.regions.length})</h3><button className="text-sm font-medium text-blue-800 underline" onClick={() => setTool("add")} disabled={!preview}>+ Add area</button></div>
             {draft.regions.length === 0 && <p className="text-xs leading-5 text-slate-500">Load a PDF, then drag a rectangle around English text.</p>}
             {draft.regions.map((region, index) => <div key={index} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${selected === index ? "border-blue-600 bg-blue-50" : "border-slate-200"}`}>
               <button className="shrink-0 text-sm" aria-label={`Select area ${index + 1}`} onClick={() => { setSelected(index); setTool("move") }}>{index + 1}.</button>
@@ -173,7 +172,6 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
               {region.mode === "preserve" && <span className="text-xs text-red-700">Protected</span>}
             </div>)}
           </div>
-          <Button variant="outline" disabled={!preview} onClick={() => setTool("preserve")}>+ Non-translation area</Button>
           {area && <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-medium">Selected: {area.name}</p>
             <div className="grid grid-cols-2 gap-2">
@@ -182,11 +180,11 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
             </div>
             <Button className="w-full border border-red-300 bg-red-50 text-red-700 hover:bg-red-100" disabled={busy} onClick={() => { change(previous => ({ ...previous, regions: previous.regions.filter((_, i) => i !== selected) })); setSelected(0); setTool("move") }}>Delete selected area</Button>
           </div>}
-          <p className="text-xs leading-5 text-slate-500">Hindi spacing and line wrapping adjust automatically. Mark protected text, amounts or logos with a red non-translation area. Scanned images need OCR first.</p>
+          <p className="text-xs leading-5 text-slate-500">Every area stays separately listed and numbered on the PDF. Hindi spacing and overlapping selections are handled automatically during conversion. Scanned images need OCR first.</p>
         </aside>
         <section className="min-w-0 overflow-auto p-4 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-            <p className="font-medium">{tool === "preserve" ? "Drag around content to keep unchanged" : tool === "add" ? "Drag to add an English text area" : tool === "source" ? "Drag to replace the selected English area" : tool === "destination" ? "Drag where Hindi should appear" : "Drag the selected area to move it"}</p>
+            <p className="font-medium">{tool === "add" ? "Drag to add an English text area" : tool === "source" ? "Drag to replace the selected English area" : "Drag the selected area to move it"}</p>
             {preview && <label className="flex items-center gap-2">Zoom<select className="rounded border bg-white p-1" value={zoom} onChange={event => setZoom(Number(event.target.value))}><option value={1}>Fit width</option><option value={1.5}>150%</option><option value={2}>200%</option></select></label>}
             {preview && <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>Previous</Button><label>Page <select className="rounded border bg-white p-1" value={page} disabled={loading} onChange={event => setPage(Number(event.target.value))}>{Array.from({ length: preview.page_count }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {preview.page_count}</label><Button size="sm" variant="outline" disabled={page >= preview.page_count || loading} onClick={() => setPage(page + 1)}>Next</Button></div>}
           </div>
@@ -202,7 +200,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
                 {pending && <rect pointerEvents="none" x={pending[0]} y={pending[1]} width={pending[2] - pending[0]} height={pending[3] - pending[1]} fill="#f97316" fillOpacity={0.2} stroke="#ea580c" vectorEffect="non-scaling-stroke" />}
               </svg>
             </div>
-            <p className="mx-auto mt-3 max-w-[1000px] text-xs text-slate-600">Blue: translate · Red: keep original · Green: optional Hindi placement · Select an area in the list to edit it.</p>
+            <p className="mx-auto mt-3 max-w-[1000px] text-xs text-slate-600">Select an area by its number in the list to rename, move or delete it. Overlapping areas remain separate entries.</p>
           </> : <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm leading-6 text-slate-500">Upload a PDF on the main screen to draw and move areas.{configuration && " Your saved areas are listed on the left."}</div>}
         </section>
       </div>

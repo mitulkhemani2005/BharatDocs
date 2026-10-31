@@ -49,11 +49,10 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f'/configurations/{key}', headers=self.headers).status_code, 200)
         self.assertEqual(self.client.get('/configurations', headers=self.headers).json()['configurations'], [])
 
-    def test_rejects_invalid_and_overlapping_areas(self):
+    def test_rejects_invalid_areas(self):
         self.assertEqual(self.client.get('/configurations').status_code, 400)
         for regions in ([{'name': 'Outside', 'rect': [0, 0, 301, 40]}],
-                        [{'name': 'Backwards', 'rect': [100, 10, 20, 40]}],
-                        self.layout['regions'] + [{'name': 'Overlap', 'rect': [20, 20, 50, 40]}]):
+                        [{'name': 'Backwards', 'rect': [100, 10, 20, 40]}]):
             response = self.client.post('/configurations', json={**self.layout, 'regions': regions}, headers=self.headers)
             self.assertEqual(response.status_code, 400, response.text)
 
@@ -82,6 +81,25 @@ class ConfigurationTests(unittest.TestCase):
         (resources / 'hindi_terms.json').write_text('{}', encoding='utf-8')
         with patch('sys.frozen', True, create=True), patch('sys.executable', str(executable)):
             self.assertEqual(resource_root(), resources)
+
+    def test_overlapping_areas_remain_separately_saved_but_extract_once(self):
+        layout = {**self.layout, 'regions': [
+            {'name': 'Area 1', 'rect': [10, 10, 90, 40]},
+            {'name': 'Area 2', 'rect': [60, 10, 140, 40]},
+            {'name': 'Area 3', 'rect': [120, 10, 180, 40]},
+        ]}
+        response = self.client.post('/configurations', json=layout, headers=self.headers)
+        self.assertEqual(response.status_code, 201, response.text)
+        key = response.json()['id']
+        with fitz.open() as doc:
+            doc.new_page(width=300, height=200).insert_text((20, 30), 'ASHOK')
+            source = doc.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('overlap.pdf', source, 'application/pdf')}).json()['upload_id']
+        extracted = self.client.get('/extract-regions', params={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+        self.assertEqual([item['text'] for item in extracted.json()['regions']], ['ASHOK'])
+        saved = self.client.get('/configurations', headers=self.headers).json()['configurations'][0]
+        self.assertEqual([area['name'] for area in saved['regions']], ['Area 1', 'Area 2', 'Area 3'])
+        self.assertEqual([area['rect'] for area in saved['regions']], [area['rect'] for area in layout['regions']])
 
     def test_protected_layer_preserves_pixels_and_upload_can_be_reused(self):
         with fitz.open() as document:

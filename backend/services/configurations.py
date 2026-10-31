@@ -48,13 +48,6 @@ class Layout(BaseModel):
                     raise ValueError("Keep every area inside the reference page.")
                 if x1 - x0 < 2 or y1 - y0 < 2:
                     raise ValueError("An area is too small. Draw a larger rectangle.")
-        for index, first in enumerate(self.regions):
-            for second in self.regions[index + 1:]:
-                if first.mode != second.mode:
-                    continue
-                for a, b in ((first.rect, second.rect), (first.text_rect or first.rect, second.text_rect or second.rect)):
-                    if max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3]):
-                        raise ValueError("Translation areas must not overlap other areas of the same type.")
         return self
 
 
@@ -122,6 +115,30 @@ def delete_layout(owner, key):
 def conversion_settings(owner, key):
     layout = get_layout(owner, key)
     return {
-        "all_pages": [{**region, "page_size": [layout["page_width"], layout["page_height"]]} for region in layout["regions"]],
+        "all_pages": [{**region, "page_size": [layout["page_width"], layout["page_height"]]} for region in conversion_regions(layout["regions"])],
         "pdf_text": {"font_size": layout["font_size"], "vertical_padding": 0},
     }
+
+
+def conversion_regions(regions):
+    """Combine overlapping extraction windows only; never alter the saved area list."""
+    result = []
+    for item in regions:
+        region = dict(item)
+        if region.get("mode") == "preserve":
+            result.append(region)
+            continue
+        changed = True
+        while changed:
+            changed = False
+            for index, other in enumerate(result):
+                a, b = region["rect"], other["rect"]
+                if other.get("mode") == "preserve" or not (max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])):
+                    continue
+                region["rect"] = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+                region["text_rect"] = None
+                result.pop(index)
+                changed = True
+                break
+        result.append(region)
+    return result
