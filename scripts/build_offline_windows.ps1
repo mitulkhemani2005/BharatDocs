@@ -37,6 +37,7 @@ $FrontendDirectory = Join-Path $ProjectRoot "frontend"
 Push-Location $FrontendDirectory
 try {
     if (-not $SkipNodeInstall) { Invoke-Checked "npm" @("ci") }
+    Invoke-Checked "npm" @("run", "brand:build")
     Invoke-Checked "npm" @("run", "build:desktop")
     if (-not (Test-Path (Join-Path $FrontendDirectory ".next-desktop\index.html"))) {
         throw "The desktop frontend export was not created."

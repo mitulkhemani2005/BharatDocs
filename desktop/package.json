@@ -1,8 +1,10 @@
 {
   "name": "bharatdocs-desktop",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Offline English-to-Hindi PDF translator for Windows",
-  "author": "BharatDocs",
+  "author": "Mitul Khemani",
+  "copyright": "Copyright © 2026 Mitul Khemani",
+  "license": "UNLICENSED",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -20,7 +22,8 @@
     },
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "assets/bharatdocs.ico"
     ],
     "extraResources": [
       { "from": "../.build/backend/desktop_backend", "to": "backend" },
@@ -29,13 +32,16 @@
       { "from": "../hindi_terms.json", "to": "hindi_terms.json" },
       { "from": "../fonts", "to": "fonts" },
       { "from": "../config.json", "to": "config.json" },
+      { "from": "../LICENSE.txt", "to": "LICENSE.txt" },
       { "from": "../THIRD_PARTY_NOTICES.txt", "to": "THIRD_PARTY_NOTICES.txt" }
     ],
     "win": {
+      "icon": "assets/bharatdocs.ico",
       "target": ["nsis"],
       "artifactName": "BharatDocs-Setup-${version}.${ext}"
     },
     "nsis": {
+      "license": "../LICENSE.txt",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

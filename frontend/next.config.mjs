@@ -2,7 +2,7 @@
 const isDesktopBuild = process.env.BHARATDOCS_DESKTOP_BUILD === "1"
 
 const nextConfig = {
-  ...(isDesktopBuild ? { output: "export", distDir: ".next-desktop" } : {}),
+  ...(isDesktopBuild ? { output: "export", distDir: ".next-desktop", assetPrefix: "./" } : {}),
 }
 
 export default nextConfig

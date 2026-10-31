@@ -14,12 +14,9 @@ def resource_root():
     return Path(__file__).resolve().parents[2]
 
 
-def user_data_root():
-    configured = os.environ.get("BHARATDOCS_USER_DATA")
+def user_documents_root():
+    configured = os.environ.get("BHARATDOCS_DOCUMENTS")
     if configured:
         return Path(configured).expanduser().resolve()
-    if getattr(sys, "frozen", False):
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            return Path(local_app_data) / "BharatDocs"
-    return resource_root()
+    documents = Path.home() / "Documents"
+    return documents / "BharatDocs"

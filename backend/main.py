@@ -8,14 +8,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse
 from starlette.status import HTTP_400_BAD_REQUEST
 from starlette.middleware.cors import CORSMiddleware
 
 from backend.api.routes import APIError, router
 from backend.core.asyncio_errors import windows_disconnect_handler
-from backend.core.paths import resource_root
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -30,7 +27,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BharatDocs API",
     description="Translate configured PDF regions into Hindi.",
-    version="1.0.0",
+    version="1.0.4",
     docs_url="/docs",
     redoc_url=None,
     lifespan=lifespan,
@@ -73,19 +70,9 @@ def health():
     return {"status": "ok"}
 
 
-frontend_directory = resource_root() / "frontend" / "out"
-frontend_index = frontend_directory / "index.html"
-
-if frontend_index.is_file():
-    @app.get("/", include_in_schema=False)
-    def frontend_homepage():
-        return FileResponse(frontend_index)
-
-    app.mount("/", StaticFiles(directory=frontend_directory, html=True), name="frontend")
-else:
-    @app.get("/", include_in_schema=False)
-    def api_homepage():
-        return {"message": "BharatDocs PDF translation API is running."}
+@app.get("/", include_in_schema=False)
+def api_homepage():
+    return {"service": "BharatDocs API", "status": "ok", "docs": "/docs"}
 
 
 if __name__ == "__main__":

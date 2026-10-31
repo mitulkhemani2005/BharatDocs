@@ -4,7 +4,11 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "BharatDocs - English to Hindi PDF Translator",
-  description: "Translate English PDF bills into readable Hindi and preview or download the translated copy.",
+  description: "Translate configured PDF fields into Hindi with BharatDocs.",
+  icons: {
+    icon: process.env.NEXT_PUBLIC_DESKTOP_APP === "1" ? "./brand-mark.svg" : "/brand-mark.svg",
+    apple: process.env.NEXT_PUBLIC_DESKTOP_APP === "1" ? "./apple-icon.png" : "/apple-icon.png",
+  },
 }
 
 export default function RootLayout({

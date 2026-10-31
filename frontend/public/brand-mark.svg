@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title">
+  <title id="title">BharatDocs document translation mark</title>
+  <rect x="12" y="12" width="696" height="696" rx="152" fill="#fffdf9"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="20">
+    <path d="M146 225c27-77 92-128 190-143" stroke="#102f55"/>
+    <path d="m307 48 34 33-39 29" stroke="#102f55"/>
+    <path d="M374 82c98 14 164 65 201 143" stroke="#f29a2e"/>
+    <path d="M575 495c-36 78-101 128-199 143" stroke="#f29a2e"/>
+    <path d="m415 672-39-34 34-32" stroke="#f29a2e"/>
+    <path d="M341 638c-97-14-167-65-195-143" stroke="#102f55"/>
+  </g>
+  <text x="105" y="388" text-anchor="middle" font-family="Arial, sans-serif" font-size="104" font-weight="500" fill="#102f55">A</text>
+  <text x="615" y="390" text-anchor="middle" font-family="Arial, 'Nirmala UI', sans-serif" font-size="106" font-weight="600" fill="#102f55">अ</text>
+  <path d="M261 236h151l48 49v194a20 20 0 0 1-20 20H261a20 20 0 0 1-20-20V256a20 20 0 0 1 20-20Z" fill="none" stroke="#102f55" stroke-width="22" stroke-linejoin="round"/>
+  <path d="M412 239v44a16 16 0 0 0 16 16h40" fill="none" stroke="#102f55" stroke-width="22" stroke-linejoin="round"/>
+  <g fill="#102f55">
+    <circle cx="308" cy="324" r="22"/>
+    <path d="M273 374c0-17 15-30 35-30s35 13 35 30v12h-70z"/>
+    <path d="M382 390c0-21 16-38 37-38s37 17 37 38c0 25-37 67-37 67s-37-42-37-67Z"/>
+  </g>
+  <circle cx="419" cy="389" r="11" fill="#fffdf9"/>
+</svg>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import shutil
 import time
 import uuid
@@ -14,7 +15,7 @@ from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from backend.core.config import load_config
-from backend.core.paths import resource_root, user_data_root
+from backend.core.paths import resource_root, user_documents_root
 from backend.services.pdf_modifier import PdfProcessingError, apply_translations_to_pdf
 from backend.services.pdf_reader import PdfValidationError, get_pdf_info
 from backend.services.region_text_extractor import extract_text_from_regions
@@ -26,12 +27,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 CONFIG_PATH = resource_root() / "config.json"
-UPLOAD_FOLDER = user_data_root() / "uploads"
+DOCUMENTS_FOLDER = user_documents_root()
+UPLOAD_FOLDER = DOCUMENTS_FOLDER / "Work"
+INPUT_FOLDER = DOCUMENTS_FOLDER / "Input"
+OUTPUT_FOLDER = DOCUMENTS_FOLDER / "Output"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 200
 UPLOAD_TTL_SECONDS = 2 * 60 * 60
 
-UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+for folder in (UPLOAD_FOLDER, INPUT_FOLDER, OUTPUT_FOLDER):
+    folder.mkdir(parents=True, exist_ok=True)
 
 
 class APIError(Exception):
@@ -146,7 +151,9 @@ def safe_filename(filename: str | None) -> str:
         raise APIError("The file name is empty. Choose a PDF and try again.", 400)
     if Path(basename).suffix.lower() != ".pdf":
         raise APIError("Only PDF files can be translated.", 415)
-    return basename
+    stem = Path(basename).stem
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", stem).strip(" .") or "document"
+    return f"{stem}.pdf"
 
 
 @router.post("/upload", status_code=201)
@@ -174,6 +181,10 @@ async def upload_pdf(file: UploadFile = File(...)):
     if info["page_count"] > MAX_PDF_PAGES:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise APIError(f"This PDF has more than {MAX_PDF_PAGES} pages. Split it into smaller files and try again.", 413)
+
+    saved_input = INPUT_FOLDER / f"{job_id.hex[:8]}_{filename}"
+    shutil.copy2(pdf_path, saved_input)
+    (job_dir / "filename.txt").write_text(filename, encoding="utf-8")
 
     return {
         "message": "PDF uploaded successfully.",
@@ -224,7 +235,10 @@ def translate_regions_api(upload_id: str | None = None):
 @router.post("/translate-pdf")
 def translate_pdf(payload: TranslatePDFRequest):
     job_dir, pdf_path = get_uploaded_pdf(payload.upload_id)
-    output_path = job_dir / "translated.pdf"
+    job_id = uuid.UUID(str(payload.upload_id))
+    source_name = (job_dir / "filename.txt").read_text(encoding="utf-8").strip() or "document.pdf"
+    output_filename = f"Hindi_{job_id.hex[:8]}_{source_name}"
+    output_path = OUTPUT_FOLDER / output_filename
     regions, text_options = get_regions_and_options()
     if payload.font_family:
         text_options["font_family"] = payload.font_family
@@ -257,6 +271,6 @@ def translate_pdf(payload: TranslatePDFRequest):
     return FileResponse(
         output_path,
         media_type="application/pdf",
-        filename="translated_document.pdf",
+        filename=output_filename,
         background=BackgroundTask(shutil.rmtree, job_dir, ignore_errors=True),
     )

@@ -1,46 +1,49 @@
 # BharatDocs
 
-BharatDocs translates text from configured regions in PDF bills into Hindi, writes the result into a new PDF, and lets the user preview or download it. The web frontend is built with Next.js. The Python API is built with FastAPI.
+**Offline English-to-Hindi PDF field translation for Windows and the web.**
 
-## Features
+[Download the latest Windows release](https://github.com/mitulkhemani2005/BharatDocs/releases/latest) · [View all releases](https://github.com/mitulkhemani2005/BharatDocs/releases) · [License](LICENSE) · [Terms](frontend/app/terms/page.tsx) · [Privacy](frontend/app/privacy/page.tsx)
 
-- Drag-and-drop or browse to upload a PDF.
-- Translate text from the configured regions into Hindi.
-- Render Devanagari with the bundled Noto Sans Devanagari font and shaped text layout.
-- Preserve detected numeric values and identifiers during translation.
+[![CI](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mitulkhemani2005/BharatDocs/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/mitulkhemani2005/BharatDocs)](https://github.com/mitulkhemani2005/BharatDocs/releases)
+
+BharatDocs converts text in configured PDF fields to Hindi. It includes an offline Windows desktop app, a separate Next.js web client, and a FastAPI service. The web client and API run as independent services; the API root does not serve the frontend.
+
+## About
+
+BharatDocs is built for translating configured names, addresses, and other bill fields into readable Devanagari while retaining the surrounding PDF. It uses a local IndicXlit model and a bundled Hindi font. The Windows desktop app works offline after installation.
+
+## Product
+
+- Upload a PDF by browsing or drag and drop.
+- Translate configured PDF regions into Hindi.
 - Preview and download the translated PDF.
-- Keep each upload in a separate, short-lived session.
-- Convert names phonetically into Hindi with the bundled IndicXlit model and translate common shop/address terms with a local dictionary.
-- Keep using the Windows desktop app without an internet connection.
-- No Google calls, external translation service, API key, or runtime model download is required.
+- Preserve numeric values and identifiers in configured text.
+- Process translations locally in the Windows desktop app without an external translation API.
+- Store desktop originals and translated copies in the user's Documents folder.
 
-## Requirements
+The app targets PDF bills that match the regions in `config.json`; it is not a general-purpose prose translator. Review translated names and amounts before using a document.
 
-- Python 3.10 or newer for development
-- Node.js 20 or newer
+## Build the Windows installer
 
-People using the packaged Windows app do not need Python, Node.js, or internet access.
-
-## Project layout
-
-```text
-backend/              FastAPI application, routes, and PDF/translation services
-frontend/             Next.js website and desktop frontend
-desktop/               Electron desktop shell
-scripts/               Model preparation and Windows packaging
-config.json            Active PDF regions and typography
-hindi_terms.json       Local Hindi spellings and address/shop vocabulary
-config_examples/       Optional layout examples
-```
-
-The website and Windows app have separate frontend builds. The desktop app opens in its own window and starts a local backend.
-
-## Run the website locally
-
-Use Python 3.10 or newer and Node.js 20 or newer. Create the backend environment and download the verified model once while online:
+On a Windows x64 build machine with Python 3.10 and Node.js 20 or newer, run:
 
 ```powershell
-cd D:\NDA_Converter
+powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
+```
+
+The script prepares the pinned, checksum-verified translation model, builds the frontend and local API executable, and creates an NSIS installer in `release/`. The installer creates Start Menu and Desktop shortcuts with the BharatDocs icon. After installation, launch BharatDocs from either shortcut. Python, Node.js, and an internet connection are not needed on the target computer.
+
+To rebuild with an already prepared model and installed Node dependencies:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1 -SkipModelPreparation -SkipNodeInstall
+```
+
+## Run locally
+
+Install Python 3.10 or newer and Node.js 20 or newer. In the project root:
+
+```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
@@ -48,75 +51,54 @@ python scripts/prepare_offline_model.py
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 5000
 ```
 
-In a second terminal, start the Next.js website:
+In a second terminal, start the web client:
 
 ```powershell
-cd D:\NDA_Converter\frontend
+cd frontend
 npm ci
 $env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:5000"
 npm run dev
 ```
 
-Open `http://localhost:3000`. The `NEXT_PUBLIC_API_URL` setting makes sure this frontend talks to your local FastAPI backend. Interactive API documentation is at `http://127.0.0.1:5000/docs`.
+Open `http://localhost:3000`. The API has health and OpenAPI endpoints at `http://127.0.0.1:5000/health` and `http://127.0.0.1:5000/docs`.
 
-`npm run build` creates the Next.js website build. `npm run build:desktop` creates the separate static frontend used by the Electron app.
+## Data storage
 
-## Configure text regions
+The desktop app saves accepted source PDFs to `Documents\BharatDocs\Input` and translated PDFs to `Documents\BharatDocs\Output`. Temporary working sessions are stored under `Documents\BharatDocs\Work`; expired sessions are pruned when a later upload begins. The input and output copies remain until the user removes them.
 
-Edit `config.json` to change the rectangles that are translated. Coordinates are PDF points in `[x0, y0, x1, y1]` order. Each configured region is applied to every page.
+The web client cannot write to a visitor's local Documents folder. When deployed, the API stores its working files and retained copies on the server. Use a persistent, access-controlled volume and the `BHARATDOCS_DOCUMENTS` setting for that location.
 
-The `pdf_text` section controls output typography:
+## Deployment
 
-```json
-"pdf_text": {
-  "font_family": "Noto Sans Devanagari",
-  "font_size": 14,
-  "vertical_padding": 2,
-  "minimum_scale": 0.7
-}
-```
+Docker deployment files are provided for the API and web client. See [DEPLOYMENT.md](DEPLOYMENT.md) for local container deployment, environment variables, persistent storage, and public hosting requirements.
 
-Each region can specify `text_rect` as a separate destination for the Hindi line. Its `rect` continues to select the English source text. Hindi is shaped with full line height, measured including upper and lower matras, then fitted uniformly inside `text_rect`. The output keeps vector text and embedded fonts. The active layout gives the name and address separate rows with a clear gap; `pdf_text.move_regions` repositions the original mobile label and number into the lower right without overlapping GST details. These moves copy the original text, preserving phone numbers.
+## Repository automation
 
-For layouts without `text_rect`, `vertical_padding` and the optional per-region `text_offset_y` control the destination. Text that cannot fit above `minimum_scale` produces an error instead of overlapping neighboring fields.
+- GitHub Actions runs the backend unit suite, checks frontend types, and builds both frontend variants on pushes and pull requests.
+- Pushing a version tag such as `v1.0.4` builds the Windows setup artifact and publishes a GitHub Release with a SHA-256 checksum.
+- The release workflow expects the tag version to match `desktop/package.json`.
+- Add the `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets to sign public Windows releases. Builds are unsigned when these secrets are not configured.
 
-The PDF uses the bundled Noto Sans Devanagari Regular font at normal weight for clear, non-bold Hindi. The font is distributed under the SIL Open Font License; its license is included beside the font file. Keep the font and license when deploying.
+## Configure PDF regions
 
-Names and addresses use phonetic Hindi spellings rather than sentence translation. `hindi_terms.json` supplies known spellings and common terms (for example `ASHOK KI.& GEN ST.` becomes `अशोक किराना एवं जनरल स्टोर`). Unlisted names use the local neural model. Personal and place names can have multiple valid spellings: add an exact spelling to this dictionary and restart the backend when needed. House numbers, postcodes and mixed identifiers such as `31B` stay unchanged. This converter is intended for configured name/address fields, not general prose.
+Edit `config.json` to change the source rectangles translated on every page. Coordinates use PDF points in `[x0, y0, x1, y1]` order. A region may use `text_rect` to set a separate Hindi destination rectangle. The `pdf_text` section controls typography; `config_examples/second-bill.json` is an optional alternate layout.
+
+Hindi output uses the bundled Noto Sans Devanagari Regular font. The font is distributed under the SIL Open Font License. Keep its accompanying license when redistributing the font. Third-party component licenses are listed in `THIRD_PARTY_NOTICES.txt`.
 
 ## API
 
-The FastAPI service exposes an OpenAPI schema at `/openapi.json` and interactive API documentation at `/docs`.
-
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Desktop frontend when packaged; API status in development |
-| `GET` | `/health` | Backend health check |
-| `POST` | `/upload` | Validate and create an upload session; returns an `upload_id` |
+| `GET` | `/` | API status |
+| `GET` | `/health` | Health check |
+| `POST` | `/upload` | Validate a PDF and create a short-lived processing session |
 | `GET` | `/verify-pdf?upload_id=...` | Return page count and encryption status |
-| `GET` | `/extract-regions?upload_id=...` | Extract text from configured regions |
-| `GET` | `/translate-regions?upload_id=...` | Return translated region text as JSON |
-| `POST` | `/translate-pdf` | Accept `{"upload_id":"...","font_family":"Noto Sans Devanagari"}` and return a translated PDF. |
+| `GET` | `/extract-regions?upload_id=...` | Extract configured text |
+| `GET` | `/translate-regions?upload_id=...` | Translate configured text as JSON |
+| `POST` | `/translate-pdf` | Create and return a translated PDF |
 
-Uploads must be valid, unencrypted PDFs under 20 MB and 200 pages. An upload session is isolated from other requests and is removed after PDF conversion; abandoned sessions are cleaned up after two hours.
+Uploads must be unencrypted PDFs under 20 MB and 200 pages. The API exposes OpenAPI documentation at `/docs`.
 
-## Deployment settings
+## Licensing
 
-- `PORT` sets the Uvicorn listen port (default `5000`).
-- `HOST` sets the local backend bind address (default `127.0.0.1`).
-- `CORS_ORIGINS` is a comma-separated list of allowed frontend origins. It defaults to `*` for local development; set it to the deployed frontend origin in production.
-- `NEXT_PUBLIC_API_URL` sets the backend URL used by the frontend.
-
-The deployment `Procfile` starts FastAPI with Uvicorn. Model preparation downloads a pinned CTranslate2 conversion of AI4Bharat IndicXlit and verifies SHA-256 checksums. Inference uses CPU only and never downloads anything. The alternate bill layout is preserved as `config_examples/second-bill.json`; `config.json` is the active layout.
-
-## Build the offline Windows installer
-
-Build on a Windows x64 computer while online. The first build downloads the translation model and desktop packaging dependencies. The generated setup app includes the frontend, Python service, Hindi fonts, local translation model, and Electron runtime:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build_offline_windows.ps1
-```
-
-The desktop frontend is built separately into `frontend\.next-desktop` and packaged as `resources\frontend\out`. The installer is written to `release\BharatDocs-Setup-1.0.3.exe`. Copy that installer to another Windows x64 computer, install it, and launch BharatDocs from its desktop shortcut. Internet is not required after installation. To rebuild with the prepared model, use `-SkipModelPreparation` after `models\indicxlit-en-hi` is ready. Both the model and `hindi_terms.json` are included in the installer.
-
-The app runs its service on a private loopback address on the same computer. PDFs are stored temporarily in the user's local application data folder and removed after conversion or when an abandoned upload expires.
+The BharatDocs application source is proprietary and all rights are reserved. Third-party components and bundled fonts remain under their respective licenses. See [LICENSE](LICENSE) and `THIRD_PARTY_NOTICES.txt`.

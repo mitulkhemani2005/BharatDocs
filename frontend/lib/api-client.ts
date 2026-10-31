@@ -4,7 +4,8 @@ type ProcessingCallback = () => void
 
 function getApiBase() {
   if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_DESKTOP_APP === "1") {
-    return window.location.origin
+    const apiBase = new URLSearchParams(window.location.search).get("apiBase")
+    return apiBase?.replace(/\/$/, "") || "http://127.0.0.1:5000"
   }
 
   const configuredApi = process.env.NEXT_PUBLIC_API_URL

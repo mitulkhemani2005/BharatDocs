@@ -47,15 +47,14 @@ function waitForBackend(url, timeoutMs = 120_000) {
 
 function startBackend() {
   const executable = path.join(process.resourcesPath, "backend", "desktop_backend.exe")
-  const userData = app.getPath("userData")
   backendProcess = spawn(executable, [], {
     windowsHide: true,
     stdio: "ignore",
     env: {
       ...process.env,
       PORT: String(backendPort),
-      BHARATDOCS_USER_DATA: userData,
-      CORS_ORIGINS: `http://127.0.0.1:${backendPort}`,
+      BHARATDOCS_DOCUMENTS: path.join(app.getPath("documents"), "BharatDocs"),
+      CORS_ORIGINS: "*",
       HF_HUB_OFFLINE: "1",
       TRANSFORMERS_OFFLINE: "1",
     },
@@ -77,7 +76,8 @@ async function createWindow() {
     minWidth: 880,
     minHeight: 650,
     show: false,
-    backgroundColor: "#f7f6f2",
+    backgroundColor: "#ffffff",
+    icon: path.join(__dirname, "assets", "bharatdocs.ico"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -85,13 +85,15 @@ async function createWindow() {
     },
   })
   mainWindow.once("ready-to-show", () => mainWindow.show())
-  await mainWindow.loadURL(serviceUrl)
+  const frontendFile = path.join(process.resourcesPath, "frontend", "out", "index.html")
+  await mainWindow.loadFile(frontendFile, { query: { apiBase: serviceUrl } })
   mainWindow.on("closed", () => {
     mainWindow = null
   })
 }
 
 app.whenReady().then(() => {
+  app.setAppUserModelId("com.bharatdocs.translator")
   createWindow().catch((error) => {
     dialog.showErrorBox("BharatDocs could not start", error.message)
     app.quit()

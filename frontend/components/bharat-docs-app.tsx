@@ -4,7 +4,6 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import {
   ArrowRight,
-  Check,
   CheckCircle2,
   Download,
   Eye,
@@ -14,24 +13,26 @@ import {
   LoaderCircle,
   Printer,
   RotateCcw,
-  Trash2,
   Upload,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { uploadAndTranslatePdf, type HindiFont } from "@/lib/api-client"
+import { legalHref } from "@/lib/legal-links"
 
 type Status = "idle" | "uploading" | "processing" | "complete"
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 
 export default function BharatDocsApp() {
+  const isDesktopApp = process.env.NEXT_PUBLIC_DESKTOP_APP === "1"
   const [status, setStatus] = useState<Status>("idle")
   const fontFamily: HindiFont = "Noto Sans Devanagari"
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -73,6 +74,10 @@ export default function BharatDocsApp() {
   const selectFile = (file?: File) => {
     if (!file) return
     setError(null)
+    if (!isDesktopApp && !hasAcceptedTerms) {
+      setError("Please confirm you have permission to submit this PDF and review the Terms and Privacy Notice.")
+      return
+    }
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setStatus("idle")
       setSelectedFile(null)
@@ -136,18 +141,18 @@ export default function BharatDocsApp() {
   const isBusy = status === "uploading" || status === "processing"
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f7f6f2] text-slate-900">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_at_top,_rgba(255,237,213,0.78),_transparent_70%)]" />
-
-      <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 pb-6 pt-5 sm:px-8 sm:pt-7">
-        <header className="flex items-center justify-between">
+    <main className="min-h-screen bg-white text-slate-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 pb-6 sm:px-8">
+        <header className="flex items-center justify-between border-b border-slate-200 py-4">
           <a href="#home" className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">
-            <span className="grid size-10 place-items-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-200">
-              <FileText className="size-5" aria-hidden="true" />
-            </span>
-            <span className="text-[17px] font-bold tracking-tight">BharatDocs</span>
+            <img
+              src={process.env.NEXT_PUBLIC_DESKTOP_APP === "1" ? "./brand-mark.svg" : "/brand-mark.svg"}
+              alt=""
+              className="size-10 rounded-xl"
+            />
+            <span className="text-[17px] font-semibold tracking-tight text-slate-950">BharatDocs</span>
           </a>
-          <div className="hidden items-center gap-2 rounded-full border border-orange-100 bg-white/75 px-3.5 py-2 text-sm font-medium text-slate-600 sm:flex">
+          <div className="hidden items-center gap-2 text-sm font-medium text-slate-500 sm:flex">
             <Languages className="size-4 text-orange-600" aria-hidden="true" />
             <span lang="en">English</span>
             <ArrowRight className="size-3.5 text-slate-400" aria-hidden="true" />
@@ -155,42 +160,39 @@ export default function BharatDocsApp() {
           </div>
         </header>
 
-        <section id="home" className="mx-auto grid w-full flex-1 items-center gap-10 pb-10 pt-12 lg:grid-cols-[1fr_0.88fr] lg:gap-16 lg:pb-16 lg:pt-14">
+        <section id="home" className="mx-auto grid w-full flex-1 items-center gap-12 py-12 lg:grid-cols-[1fr_0.82fr] lg:gap-20 lg:py-16">
           <div className="mx-auto w-full max-w-xl lg:mx-0">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-100 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.15em] text-orange-700">
-              <span className="size-1.5 rounded-full bg-orange-500" />
-              Simple PDF translation
-            </div>
-            <h1 className="max-w-xl text-4xl font-semibold leading-[1.12] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.5rem]">
-              Your documents, in <span className="text-orange-600">clear Hindi.</span>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">PDF translation</p>
+            <h1 className="max-w-xl text-4xl font-semibold leading-[1.12] tracking-[-0.04em] text-slate-950 sm:text-5xl lg:text-[3.35rem]">
+              Your documents, in <span className="text-[#17365d]">clear Hindi.</span>
             </h1>
-            <p className="mt-5 max-w-lg text-[16px] leading-7 text-slate-600 sm:text-lg">
+            <p className="mt-5 max-w-lg text-base leading-7 text-slate-600 sm:text-[17px]">
               Upload a bill or PDF and get a translated copy with readable Devanagari text, ready to preview and download.
             </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
-              <span className="inline-flex items-center gap-2"><Check className="size-4 text-emerald-600" aria-hidden="true" /> Layout stays in place</span>
-              <span className="inline-flex items-center gap-2"><Check className="size-4 text-emerald-600" aria-hidden="true" /> Numbers are preserved</span>
-            </div>
 
             <div
               onDragEnter={(event) => { event.preventDefault(); setIsDragging(true) }}
               onDragOver={(event) => event.preventDefault()}
               onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setIsDragging(false) }}
               onDrop={handleDrop}
-              className={`mt-9 rounded-2xl border bg-white p-5 shadow-[0_18px_55px_-35px_rgba(15,23,42,0.25)] transition sm:p-6 ${isDragging ? "border-orange-400 ring-4 ring-orange-100" : "border-slate-200/80"}`}
+              className={`mt-8 rounded-2xl border bg-white p-5 transition sm:p-6 ${isDragging ? "border-[#17365d] ring-4 ring-slate-100" : "border-slate-200 shadow-sm"}`}
               aria-live="polite"
             >
-              {status === "idle" && (
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">Hindi print font</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Set to regular-weight Hindi for clear printing.</p>
-                  </div>
-                  <div className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-left text-orange-950">
-                    <span className="block font-hindi text-sm font-normal">Noto Sans Devanagari</span>
-                    <span className="mt-0.5 block text-[10px] text-slate-500">Regular weight for clear print</span>
-                  </div>
+              {status === "idle" && !isDesktopApp && (
+                <div className="mb-4 flex items-start gap-3 rounded-xl bg-slate-50 px-3.5 py-3">
+                  <input
+                    id="accept-terms"
+                    type="checkbox"
+                    checked={hasAcceptedTerms}
+                    onChange={(event) => { setHasAcceptedTerms(event.target.checked); setError(null) }}
+                    className="mt-1 size-4 shrink-0 accent-[#17365d]"
+                  />
+                  <p className="text-xs leading-5 text-slate-600">
+                    <label htmlFor="accept-terms" className="cursor-pointer">I confirm I have permission to submit this document and agree to the </label>
+                    <a href={legalHref("terms")} className="font-semibold text-[#17365d] underline underline-offset-2">Terms</a>
+                    <span> and acknowledge the </span>
+                    <a href={legalHref("privacy")} className="font-semibold text-[#17365d] underline underline-offset-2">Privacy Notice</a>.
+                  </p>
                 </div>
               )}
               {status === "complete" ? (
@@ -205,7 +207,7 @@ export default function BharatDocsApp() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button onClick={handleDownload} className="h-11 flex-1 gap-2 bg-orange-600 text-white hover:bg-orange-700">
+                    <Button onClick={handleDownload} className="h-11 flex-1 gap-2 bg-[#17365d] text-white hover:bg-[#102846]">
                       <Download className="size-4" aria-hidden="true" /> Download PDF
                     </Button>
                     <Button onClick={handlePreview} variant="outline" className="h-11 flex-1 gap-2 border-slate-200 bg-white">
@@ -215,11 +217,18 @@ export default function BharatDocsApp() {
                       <RotateCcw className="size-4" aria-hidden="true" /> New PDF
                     </Button>
                   </div>
+                  <p className="text-xs leading-5 text-slate-500">
+                    {isDesktopApp ? (
+                      "The source and translated PDFs are saved in Documents/BharatDocs on this computer."
+                    ) : (
+                      <>The connected API server retains source and translated copies. See the <a href={legalHref("privacy")} className="font-medium text-[#17365d] underline underline-offset-2">Privacy Notice</a>.</>
+                    )}
+                  </p>
                 </div>
               ) : isBusy ? (
                 <div className="py-2">
                   <div className="flex items-center gap-3">
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-700">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
                       {status === "uploading" ? <Upload className="size-5" aria-hidden="true" /> : <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -227,8 +236,8 @@ export default function BharatDocsApp() {
                       <p className="mt-1 truncate text-sm text-slate-500">{selectedFile?.name}</p>
                     </div>
                   </div>
-                  <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-orange-50">
-                    <div className={`h-full rounded-full bg-orange-500 transition-all duration-700 ${status === "uploading" ? "w-1/3" : "w-4/5 animate-pulse"}`} />
+                  <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full bg-[#17365d] transition-all duration-700 ${status === "uploading" ? "w-1/3" : "w-4/5 animate-pulse"}`} />
                   </div>
                   <p className="mt-3 text-center text-xs text-slate-500">This can take a little longer for multi-page PDFs.</p>
                 </div>
@@ -236,19 +245,20 @@ export default function BharatDocsApp() {
                 <>
                   <label
                     htmlFor="pdf-upload"
-                    className={`flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed px-5 py-8 text-center transition has-[:focus-visible]:border-orange-400 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-orange-100 sm:py-9 ${isDragging ? "border-orange-400 bg-orange-50/70" : "border-slate-200 bg-slate-50/70 hover:border-orange-300 hover:bg-orange-50/50"}`}
+                    className={`flex flex-col items-center rounded-xl border border-dashed px-5 py-9 text-center transition has-[:focus-visible]:border-[#17365d] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-slate-100 sm:py-10 ${isDesktopApp || hasAcceptedTerms ? "cursor-pointer" : "cursor-not-allowed opacity-65"} ${isDragging ? "border-[#17365d] bg-slate-50" : "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50/70"}`}
                   >
-                    <span className="grid size-12 place-items-center rounded-2xl bg-white text-orange-600 shadow-sm ring-1 ring-slate-200/70">
+                    <span className="grid size-12 place-items-center rounded-xl bg-slate-100 text-[#17365d]">
                       <Upload className="size-5" aria-hidden="true" />
                     </span>
-                    <span className="mt-4 text-base font-semibold text-slate-800">Drop your PDF here</span>
-                    <span className="mt-1 text-sm text-slate-500">or <span className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2">browse files</span></span>
-                    <span className="mt-4 rounded-full bg-white px-3 py-1 text-xs text-slate-500 ring-1 ring-slate-200/70">PDF only · Up to 20 MB</span>
+                    <span className="mt-4 text-base font-semibold text-slate-900">Choose a PDF to translate</span>
+                    <span className="mt-1 text-sm text-slate-500">Drop it here or <span className="font-medium text-[#17365d] underline underline-offset-2">browse files</span></span>
+                    <span className="mt-4 text-xs text-slate-500">PDF only · Up to 20 MB</span>
                     <input
                       ref={fileInputRef}
                       id="pdf-upload"
                       type="file"
                       accept=".pdf,application/pdf"
+                      disabled={!isDesktopApp && !hasAcceptedTerms}
                       onChange={handleFileChange}
                       className="sr-only"
                     />
@@ -264,39 +274,35 @@ export default function BharatDocsApp() {
               )}
             </div>
 
-            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 sm:justify-start">
-              <Trash2 className="size-3.5" aria-hidden="true" />
-              Names and addresses are converted locally without external translation services.
-            </div>
           </div>
 
           <aside className="mx-auto w-full max-w-md lg:mx-0 lg:justify-self-end">
-            <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-[0_28px_75px_-46px_rgba(15,23,42,0.28)]">
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Three simple steps</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Simple workflow</p>
                   <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">From PDF to Hindi</h2>
                 </div>
-                <span className="grid size-10 place-items-center rounded-xl bg-orange-50 text-orange-700"><Languages className="size-5" aria-hidden="true" /></span>
+                <span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-[#17365d]"><Languages className="size-5" aria-hidden="true" /></span>
               </div>
               <ol className="divide-y divide-slate-100 px-6">
                 <li className="flex gap-4 py-5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">01</span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">01</span>
                   <div><h3 className="font-semibold text-slate-800">Choose a PDF</h3><p className="mt-1 text-sm leading-6 text-slate-500">Select a bill or document from your device.</p></div>
                 </li>
                 <li className="flex gap-4 py-5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-orange-100 text-sm font-semibold text-orange-800">02</span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">02</span>
                   <div><h3 className="font-semibold text-slate-800">Let BharatDocs translate</h3><p className="mt-1 text-sm leading-6 text-slate-500">English text in the configured fields is translated to Hindi.</p></div>
                 </li>
                 <li className="flex gap-4 py-5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">03</span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">03</span>
                   <div><h3 className="font-semibold text-slate-800">Preview and save</h3><p className="mt-1 text-sm leading-6 text-slate-500">Check your translated PDF, then download a copy.</p></div>
                 </li>
               </ol>
-              <div className="mx-6 mb-6 rounded-2xl bg-[#f7f6f2] p-4">
+              <div className="mx-6 mb-6 rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-9 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><FileCheck2 className="size-4" aria-hidden="true" /></span>
-                  <div><p className="text-sm font-semibold text-slate-800">Made for readable Hindi</p><p className="mt-0.5 font-hindi text-[17px] font-normal leading-7 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
+                  <span className="grid size-9 place-items-center rounded-lg bg-slate-100 text-[#17365d]"><FileCheck2 className="size-4" aria-hidden="true" /></span>
+                  <div><p className="text-sm font-semibold text-slate-800">Readable Devanagari output</p><p className="mt-0.5 font-hindi text-[16px] font-normal leading-6 text-slate-600" lang="hi">साफ़ और स्पष्ट देवनागरी</p></div>
                 </div>
               </div>
             </div>
@@ -304,9 +310,12 @@ export default function BharatDocsApp() {
           </aside>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-slate-200/80 pt-4 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <p>Made for <span className="font-medium text-slate-700">New Durga Agencies, Ujjain</span></p>
+        <footer className="flex flex-col gap-3 border-t border-slate-200 pt-4 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <p>© {new Date().getFullYear()} BharatDocs</p>
+          <nav aria-label="Legal" className="flex justify-center gap-5">
+            <a href={legalHref("terms")} className="hover:text-slate-900">Terms</a>
+            <a href={legalHref("privacy")} className="hover:text-slate-900">Privacy</a>
+          </nav>
         </footer>
       </div>
 
@@ -316,12 +325,12 @@ export default function BharatDocsApp() {
           <section className="relative flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className="flex min-h-14 items-center justify-between gap-3 border-b border-slate-200 px-4 sm:px-5">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-orange-700"><FileText className="size-4" aria-hidden="true" /></span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-[#17365d]"><FileText className="size-4" aria-hidden="true" /></span>
                 <p className="truncate text-sm font-medium text-slate-800">{selectedFile?.name}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => iframeRef.current?.contentWindow?.print()} className="gap-2 border-slate-200"><Printer className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Print</span></Button>
-                <Button onClick={handleDownload} size="sm" className="gap-2 bg-orange-600 text-white hover:bg-orange-700"><Download className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Download</span></Button>
+                <Button onClick={handleDownload} size="sm" className="gap-2 bg-[#17365d] text-white hover:bg-[#102846]"><Download className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Download</span></Button>
                 <Button variant="ghost" size="icon" aria-label="Close preview" onClick={closePreview}><X className="size-4" aria-hidden="true" /></Button>
               </div>
             </header>
