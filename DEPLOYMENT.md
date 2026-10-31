@@ -10,7 +10,7 @@ Install Docker Desktop or Docker Engine with Compose. Copy `.env.example` to `.e
 docker compose up --build
 ```
 
-The web client is available on port 3000 and the API on port 5000. The API stores accepted inputs and translated outputs in the persistent `bharatdocs_data` volume. The model is downloaded and checksum-verified while building the API image.
+The web client is available on port 3000 and the API on port 5000. The API stores accepted inputs and translated outputs in the persistent `bharatdocs_data` volume. The translation model and English OCR data are downloaded and checksum-verified while building the API image. Scanned selections are recognized locally at runtime without network access or a separate Tesseract installation.
 
 For a hosted web deployment, set `NEXT_PUBLIC_API_URL` to the public HTTPS URL of the API before building the web image, then set `CORS_ORIGINS` to the deployed web origin. The browser must be able to reach that API URL. Use persistent storage for `BHARATDOCS_DOCUMENTS` and back it up according to the operator's data policy.
 

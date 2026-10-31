@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1
+
+- Automatically read scanned English names and addresses with offline OCR when selected areas have no selectable text.
+- Include checksum-verified English OCR data in Windows installers and API containers; no separate Tesseract installation is required.
+- Keep OCR, English cleanup, and Hindi placement inside the selected areas, preserving surrounding invoice content.
+- Accept tightly drawn areas around selectable text and avoid re-reading existing OCR text layers.
+
 ## 2.0.0
 
 - Upload a PDF before selecting or creating a reusable configuration.

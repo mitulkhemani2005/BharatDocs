@@ -224,7 +224,7 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
             for page in doc:
                 if page.rotation:
                     page.remove_rotation()
-            grouped, protected = {}, {}
+            grouped, protected, ocr_regions = {}, {}, {}
             for region in translated_regions:
                 index = region.get("page")
                 if not isinstance(index, int) or not 0 <= index < len(doc):
@@ -233,6 +233,8 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
                 text = region.get("hindi_text", "").strip()
                 bbox = fitz.Rect(region["rect"]) & doc[index].rect
                 if text and not bbox.is_empty:
+                    if region.get("source_rects"):
+                        ocr_regions.setdefault(index, []).append((bbox, region.get("source_rects", [])))
                     override = region.get("font_size")
                     size = font_size if override is None else _render_options({"font_family": font_family, "font_size": override})[1]
                     grouped.setdefault(index, []).append((bbox, text, region.get("region_name", "Area"), size))
@@ -278,7 +280,11 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
                                              fitz.Rect(rect.x0, rect.y1-.5, rect.x1, rect.y1+.5),
                                              fitz.Rect(rect.x0-.5, rect.y0, rect.x0+.5, rect.y1),
                                              fitz.Rect(rect.x1-.5, rect.y0, rect.x1+.5, rect.y1)))
-                blockers.extend(fitz.Rect(info["bbox"]) for info in page.get_image_info())
+                for info in page.get_image_info():
+                    # A scanned page's image is the source of OCR text, so allow
+                    # replacement only within the user's OCR selection.
+                    blockers.extend(_subtract_rectangles(fitz.Rect(info["bbox"]),
+                                    [area for area, _source in ocr_regions.get(index, [])]))
                 clear_masks[index] = blockers
                 plans[index] = _plan_selected_areas(page, regions, blockers, prepare)
 
@@ -286,9 +292,12 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
                 page = doc[index]
                 for bbox, _text, _name, _size in regions:
                     # Even English glyph cleanup cannot paint outside the chosen area.
-                    clear = _source_clear_rect(bbox, spans_by_page[index]) & bbox
-                    for piece in _subtract_rectangles(clear, clear_masks[index]):
-                        page.draw_rect(piece, fill=(1, 1, 1), color=None, overlay=True)
+                    scanned_sources = [source for area, source in ocr_regions.get(index, []) if area == bbox]
+                    clears = ([fitz.Rect(rect) & bbox for source in scanned_sources for rect in source]
+                              if scanned_sources else [_source_clear_rect(bbox, spans_by_page[index]) & bbox])
+                    for clear in clears:
+                        for piece in _subtract_rectangles(clear, clear_masks[index]):
+                            page.draw_rect(piece, fill=(1, 1, 1), color=None, overlay=True)
                 for number, ink, fitted in plans[index].values():
                     page.show_pdf_page(fitted, shaped, number, clip=ink, overlay=True)
             doc.save(output_path, garbage=4, deflate=True)

@@ -13,9 +13,11 @@ RUN python -m pip install --upgrade pip && python -m pip install -r requirements
 
 COPY backend ./backend
 COPY scripts/prepare_offline_model.py ./scripts/prepare_offline_model.py
+COPY scripts/prepare_ocr_data.py ./scripts/prepare_ocr_data.py
 COPY hindi_terms.json LICENSE.txt THIRD_PARTY_NOTICES.txt ./
 COPY fonts ./fonts
 RUN python scripts/prepare_offline_model.py
+RUN python scripts/prepare_ocr_data.py
 
 EXPOSE 5000
 CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "5000"]

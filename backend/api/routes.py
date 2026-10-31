@@ -209,7 +209,7 @@ def translate_regions_api(upload_id: str | None = None, configuration_id: str | 
     try:
         extracted = extract_text_from_regions(pdf_path, regions)
         if not any(region["text"].strip() for region in extracted):
-            raise APIError("No selectable text was found in these areas. Edit the configuration and select the English text. Scanned PDFs need OCR first.", 422)
+            raise APIError("No English text was found in the selected areas, including after checking images with offline OCR. Select the name or address, or try a clearer scan.", 422)
         translated = translate_regions(extracted)
     except PdfValidationError as error:
         raise APIError(str(error), 422) from error
@@ -235,7 +235,7 @@ def translate_pdf(payload: TranslatePDFRequest, x_configuration_owner: str | Non
             raise APIError(f"This PDF has more than {MAX_PDF_PAGES} pages.", 413)
         extracted = extract_text_from_regions(pdf_path, regions)
         if not any(region["text"].strip() for region in extracted):
-            raise APIError("No selectable text was found in these areas. Edit the configuration and select the English text. Scanned PDFs need OCR first.", 422)
+            raise APIError("No English text was found in the selected areas, including after checking images with offline OCR. Select the name or address, or try a clearer scan.", 422)
         translated = translate_regions(extracted)
         apply_translations_to_pdf(
             input_pdf_path=pdf_path,

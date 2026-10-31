@@ -208,7 +208,7 @@ export default function ConfigurationEditor({ configuration, initialUploadId, on
             </div>
             <Button className="w-full border border-red-300 bg-red-50 text-red-700 hover:bg-red-100" disabled={busy} onClick={() => { change(previous => ({ ...previous, regions: previous.regions.filter((_, i) => i !== selected) })); setSelected(0); setTool("move") }}>Delete selected area</Button>
           </div>}
-          <p className="text-xs leading-5 text-slate-500">Every area stays separately listed and numbered on the PDF. Hindi spacing and overlapping selections are handled automatically during conversion. Scanned images need OCR first.</p>
+          <p className="text-xs leading-5 text-slate-500">Every area stays separately listed and numbered on the PDF. Hindi spacing and overlapping selections are handled automatically during conversion. Text in scanned images is read automatically with offline OCR.</p>
         </aside>
         <section className="min-w-0 overflow-auto p-4 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">

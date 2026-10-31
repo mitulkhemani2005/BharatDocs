@@ -202,7 +202,25 @@ class ConfigurationTests(unittest.TestCase):
         key = self.client.post('/configurations', json=self.layout, headers=self.headers).json()['id']
         result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
         self.assertEqual(result.status_code, 422)
-        self.assertIn('No selectable text', result.json()['error'])
+        self.assertIn('No English text', result.json()['error'])
+
+    def test_scanned_pdf_translates_through_the_api_without_a_manual_ocr_step(self):
+        from backend.core.paths import resource_root
+        if not (resource_root() / 'models/tessdata/eng.traineddata').is_file():
+            self.skipTest('Offline OCR data not prepared')
+        with fitz.open() as raster, fitz.open() as document:
+            page = raster.new_page(width=300, height=200)
+            page.insert_text((20, 30), 'ASHOK', fontsize=12)
+            image = page.get_pixmap(matrix=fitz.Matrix(3, 3)).tobytes('png')
+            page = document.new_page(width=300, height=200)
+            page.insert_image(page.rect, stream=image)
+            source = document.tobytes()
+        upload_id = self.client.post('/upload', files={'file': ('scan.pdf', source, 'application/pdf')}).json()['upload_id']
+        key = self.client.post('/configurations', json=self.layout, headers=self.headers).json()['id']
+        result = self.client.post('/translate-pdf', json={'upload_id': upload_id, 'configuration_id': key}, headers=self.headers)
+        self.assertEqual(result.status_code, 200, result.text if result.status_code != 200 else '')
+        with fitz.open(stream=result.content, filetype='pdf') as output:
+            self.assertIn('अशोक', output[0].get_text())
 
     def test_rotated_page_preview_and_translation_share_visible_coordinates(self):
         with fitz.open() as document:
