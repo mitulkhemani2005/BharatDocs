@@ -55,8 +55,6 @@ function startBackend() {
       PORT: String(backendPort),
       BHARATDOCS_DOCUMENTS: path.join(app.getPath("documents"), "BharatDocs"),
       CORS_ORIGINS: "*",
-      HF_HUB_OFFLINE: "1",
-      TRANSFORMERS_OFFLINE: "1",
     },
   })
   backendProcess.once("error", (error) => {
