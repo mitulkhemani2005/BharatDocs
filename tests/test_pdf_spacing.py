@@ -12,6 +12,54 @@ from backend.services.pdf_modifier import (
 
 
 class HindiSpacingTests(unittest.TestCase):
+    def test_crowded_fields_borrow_shared_space_without_a_continuation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            with fitz.open() as doc:
+                page = doc.new_page(width=220, height=120)
+                page.insert_text((11, 28), 'A', fontsize=6)
+                page.insert_text((40, 28), 'B', fontsize=6)
+                page.draw_line((0, 18), (220, 18))
+                page.draw_line((0, 42), (220, 42))
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [
+                {'page': 0, 'region_name': 'Name', 'rect': [10, 20, 30, 32], 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'},
+                {'page': 0, 'region_name': 'Address', 'rect': [32, 20, 180, 32], 'hindi_text': 'नगर'},
+            ])
+            with fitz.open(output) as doc:
+                self.assertEqual(len(doc), 1)
+                self.assertIn('अशोक', doc[0].get_text())
+                self.assertIn('नगर', doc[0].get_text())
+
+    def test_full_page_gets_readable_continuation_and_original_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            with fitz.open() as doc:
+                page = doc.new_page(width=200, height=100)
+                image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 10), False)
+                image.clear_with(240)
+                page.insert_image(page.rect, pixmap=image)
+                page.insert_text((20, 35), 'ASHOK', fontsize=12)
+                before = page.get_pixmap().samples
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Shop name', 'rect': [15, 20, 100, 40], 'hindi_text': 'अशोक किराना'}])
+            with fitz.open(output) as doc:
+                self.assertEqual(len(doc), 2)
+                self.assertEqual(doc[0].get_pixmap().samples, before)
+                self.assertIn('अशोक', doc[1].get_text())
+
+    def test_long_continuation_paginates_without_losing_words(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'
+            with fitz.open() as doc:
+                page = doc.new_page(width=200, height=100)
+                page.insert_text((20, 35), 'ASHOK', fontsize=12)
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Name', 'rect': [15, 20, 40, 30], 'protected_rects': [[0, 0, 200, 100]], 'hindi_text': ' '.join(['अशोक'] * 1000)}])
+            with fitz.open(output) as doc:
+                self.assertGreater(len(doc), 2)
+                self.assertEqual(sum(page.get_text().count('अशोक') for page in list(doc)[1:]), 1000)
+
     def test_long_hindi_wraps_automatically_without_covering_neighbor(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, output = Path(temporary) / 'source.pdf', Path(temporary) / 'output.pdf'

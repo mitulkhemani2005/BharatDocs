@@ -23,6 +23,10 @@ class PdfProcessingError(Exception):
     """Raised when translated text cannot be safely rendered into the PDF."""
 
 
+class LayoutSpaceError(PdfProcessingError):
+    """A placement attempt needs a different allocation of page space."""
+
+
 def _render_options(options):
     options = {**DEFAULT_TEXT_OPTIONS, **(options or {})}
     font_family = options["font_family"]
@@ -119,7 +123,7 @@ def _prepare_hindi_text(document, text, font_size, css, archive, wrap_width=None
 def _fit_text_rect(destination, ink, minimum_scale):
     scale = min(1, destination.width / ink.width, destination.height / ink.height)
     if scale < minimum_scale:
-        raise PdfProcessingError("This page has too little free space to place readable Hindi without covering other content.")
+        raise LayoutSpaceError("The current placement needs more room for readable Hindi.")
     width, height = ink.width * scale, ink.height * scale
     x = destination.x0 + (destination.width - width) / 2
     y = destination.y0 + (destination.height - height) / 2
@@ -180,8 +184,91 @@ def _automatic_destination(page, seed, blockers, font_size):
     expanded = fitz.Rect(seed.x0, top, seed.x1, bottom)
     pieces = _subtract_rectangles(expanded, blockers)
     if not pieces:
-        raise PdfProcessingError("This page has no free space for the selected Hindi field.")
+        raise LayoutSpaceError("The current placement has no free space.")
     return max(pieces, key=lambda rect: rect.get_area())
+
+
+def _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=False):
+    """Retry the entire group so a tight field can borrow unused neighboring space."""
+    group = fitz.Rect(seeds[0])
+    for seed in seeds[1:]:
+        group |= seed
+    group = (group + (-font_size * 2, -font_size * 4, font_size * 2, font_size * 4)) & page.rect
+    orders = [list(range(len(regions)))]
+    if redistribute:
+        orders = [sorted(orders[0], key=lambda i: seeds[i].get_area() / max(1, len(regions[i][1]))), orders[0], list(reversed(orders[0]))]
+    for order in orders:
+        placed, result = [], {}
+        for index in order:
+            text = regions[index][1]
+            blockers = fixed + masks + placed
+            if not redistribute:
+                blockers += [seed for i, seed in enumerate(seeds) if i != index]
+            destinations = []
+            try:
+                destinations.append(_automatic_destination(page, seeds[index], blockers, font_size))
+            except LayoutSpaceError:
+                pass
+            if redistribute:
+                # Selected areas are movable space, not permanent obstacles. Search
+                # all free pieces in their shared neighborhood before shrinking.
+                destinations += _subtract_rectangles(group, blockers)
+                destinations = sorted(destinations, key=lambda rect: rect.get_area(), reverse=True)[:24]
+            candidates = []
+            for destination in destinations:
+                if destination.width < 8 or destination.height < 8:
+                    continue
+                widths = (None, round(destination.width, 2)) if len(text) < 500 else (round(destination.width, 2),)
+                for width in widths:
+                    try:
+                        number, ink = prepare(text, width)
+                    except PdfProcessingError:
+                        # An oversized paragraph can be paginated by the continuation
+                        # path; failing a single shaping attempt must not abort it.
+                        continue
+                    scale = min(1, destination.width / ink.width, destination.height / ink.height)
+                    if scale + 1e-6 < min(1, 8 / font_size):
+                        continue
+                    fitted = _fit_text_rect(destination, ink, min(1, 8 / font_size) - 1e-6)
+                    target_y = min(max((seeds[index].y0 + seeds[index].y1 - fitted.height) / 2, destination.y0), destination.y1 - fitted.height)
+                    dy = target_y - fitted.y0
+                    fitted += (0, dy, 0, dy)
+                    ordered = True
+                    for other_index, (_, _, other_rect) in result.items():
+                        other_seed = seeds[other_index]
+                        if min(seeds[index].x1, other_seed.x1) <= max(seeds[index].x0, other_seed.x0):
+                            continue
+                        if seeds[index].y0 >= other_seed.y1 and fitted.y0 < other_rect.y1 + 1:
+                            ordered = False
+                        elif seeds[index].y1 <= other_seed.y0 and fitted.y1 + 1 > other_rect.y0:
+                            ordered = False
+                    if not ordered:
+                        continue
+                    distance = math.hypot(fitted.x0 - seeds[index].x0, fitted.y0 - seeds[index].y0)
+                    candidates.append((scale - distance / max(1, page.rect.width + page.rect.height) * .15, number, ink, fitted))
+                    if scale >= .95:
+                        break
+            if not candidates:
+                break
+            _, number, ink, fitted = max(candidates, key=lambda item: item[0])
+            result[index] = (number, ink, fitted)
+            placed.append(fitted + (-1, -1, 1, 1))
+        else:
+            return result
+    raise LayoutSpaceError("The selected fields need a Hindi continuation page.")
+
+
+def _continuation_chunks(text, limit=300):
+    words, chunk = text.split(), []
+    size = 0
+    for word in words:
+        if chunk and size + len(word) > limit:
+            yield " ".join(chunk)
+            chunk, size = [], 0
+        chunk.append(word)
+        size += len(word) + 1
+    if chunk:
+        yield " ".join(chunk)
 
 
 def apply_translations_to_pdf(
@@ -234,6 +321,15 @@ def apply_translations_to_pdf(
             # Plan and shape everything before grafting PDF resources from text_doc.
             plans = {}
             clear_masks = {}
+            overflow = {}
+            continuation_plans = []
+
+            def prepare(text, width=None):
+                key = (text, width)
+                if key not in prepared:
+                    prepared[key] = _prepare_hindi_text(text_doc, text, font_size, css, archive, width)
+                return prepared[key]
+
             for page_index, regions in page_regions.items():
                 page = doc[page_index]
                 masks = protected_pages.get(page_index, [])
@@ -256,29 +352,38 @@ def apply_translations_to_pdf(
                 fixed.extend(fitz.Rect(info["bbox"]) for info in page.get_image_info())
                 clear_masks[page_index] = fixed + masks
                 seeds = [fitz.Rect(item[4]) if item[4] else fitz.Rect(item[0]) for item in regions]
-                placed = []
-                for index, (_bbox, text, _name, _offset, _destination) in enumerate(regions):
-                    blockers = fixed + masks + placed + [seed for i, seed in enumerate(seeds) if i != index]
-                    destination = _automatic_destination(page, seeds[index], blockers, font_size)
-                    candidates = []
-                    for width in (None, round(destination.width, 2)):
-                        key = (text, width)
-                        if key not in prepared:
-                            prepared[key] = _prepare_hindi_text(text_doc, text, font_size, css, archive, width)
-                        number, ink = prepared[key]
-                        scale = min(1, destination.width / ink.width, destination.height / ink.height)
-                        candidates.append((scale, number, ink))
-                        if scale >= .95:
-                            break
-                    scale, number, ink = max(candidates, key=lambda candidate: candidate[0])
-                    fitted = _fit_text_rect(destination, ink, min(1, 8 / font_size))
-                    target_y = min(max((seeds[index].y0 + seeds[index].y1 - fitted.height) / 2, destination.y0), destination.y1 - fitted.height)
-                    dy = target_y - fitted.y0
-                    fitted += (0, dy, 0, dy)
-                    plans[(page_index, index)] = (number, ink, fitted)
-                    placed.append(fitted + (-1, -1, 1, 1))
+                try:
+                    page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare)
+                except LayoutSpaceError:
+                    try:
+                        page_plan = _plan_page(page, regions, seeds, fixed, masks, font_size, prepare, redistribute=True)
+                    except LayoutSpaceError:
+                        # Keep this original bill intact and provide every Hindi field
+                        # at full size on labeled continuation pages. Never drop text.
+                        overflow[page_index] = regions
+                        continue
+                plans.update({(page_index, index): placement for index, placement in page_plan.items()})
+
+            # Finish shaping every continuation page before importing text_doc resources.
+            for original_index, regions in overflow.items():
+                target_index, cursor = None, 0
+                for _bbox, text, name, _offset, _destination in regions:
+                    for chunk_index, chunk in enumerate(_continuation_chunks(text)):
+                        content = f"{name}: {chunk}" if chunk_index == 0 else chunk
+                        number, ink = prepare(content, 535)
+                        if target_index is None or cursor + ink.height > 810:
+                            target = doc.new_page(width=595, height=842)
+                            target_index, cursor = target.number, 64
+                            heading, heading_ink = prepare(f"हिंदी विवरण - मूल पृष्ठ {original_index + 1}", 535)
+                            header = fitz.Rect(30, 25, 30 + heading_ink.width, 25 + heading_ink.height)
+                            continuation_plans.append((target_index, heading, heading_ink, header))
+                        fitted = fitz.Rect(30, cursor, 30 + ink.width, cursor + ink.height)
+                        continuation_plans.append((target_index, number, ink, fitted))
+                        cursor = fitted.y1 + 14
 
             for page_index, regions in page_regions.items():
+                if page_index in overflow:
+                    continue
                 page = doc[page_index]
 
                 # Clear every target first so text from a neighboring region is never erased later.
@@ -308,6 +413,9 @@ def apply_translations_to_pdf(
                         dx = target.x0 - fitted.x0
                         fitted += (dx, 0, dx, 0)
                         page.show_pdf_page(fitted, original, page_index, clip=clip, overlay=True)
+
+            for target_index, number, ink, fitted in continuation_plans:
+                doc[target_index].show_pdf_page(fitted, text_doc, number, clip=ink, overlay=True)
 
             doc.save(output_path, garbage=4, deflate=True)
     except PdfProcessingError:
