@@ -159,41 +159,53 @@ def _plan_selected_areas(page, regions, blockers, prepare):
               tuple(sorted(range(len(regions)), key=lambda i: regions[i][0].get_area() / max(1, len(regions[i][1])))),
               tuple(reversed(range(len(regions))))]
     failed_name = regions[0][2]
-    failed_size = regions[0][3]
     for order in dict.fromkeys(orders):
         plans, placed = {}, []
         for index in order:
             bbox, text, name, font_size = regions[index]
             pieces = sorted(_subtract_rectangles(bbox, blockers + placed), key=lambda rect: rect.get_area(), reverse=True)
-            found = None
-            for piece in pieces:
-                if piece.width < 2 or piece.height < 2:
-                    continue
-                for width in ((None, round(piece.width, 2)) if len(text) < 500 else (round(piece.width, 2),)):
-                    try:
-                        number, ink = prepare(text, width, font_size)
-                    except PdfProcessingError:
+            def try_size(size):
+                for piece in pieces:
+                    if piece.width < 2 or piece.height < 2:
                         continue
-                    if ink.width > piece.width or ink.height > piece.height:
-                        continue
-                    fitted = _fit_text_rect(piece, ink, 1)
-                    target_y = min(max((bbox.y0 + bbox.y1 - fitted.height) / 2, piece.y0), piece.y1 - fitted.height)
-                    fitted += (0, target_y - fitted.y0, 0, target_y - fitted.y0)
-                    found = (number, ink, fitted)
-                    break
+                    widths = (None, round(piece.width, 2)) if len(text) < 500 else (round(piece.width, 2),)
+                    for width in widths:
+                        try:
+                            number, ink = prepare(text, width, size)
+                        except PdfProcessingError:
+                            continue
+                        if ink.width > piece.width or ink.height > piece.height:
+                            continue
+                        fitted = _fit_text_rect(piece, ink, 1)
+                        target_y = min(max((bbox.y0 + bbox.y1 - fitted.height) / 2, piece.y0), piece.y1 - fitted.height)
+                        fitted += (0, target_y - fitted.y0, 0, target_y - fitted.y0)
+                        return number, ink, fitted
+                return None
+
+            # Keep the requested size when it fits. Otherwise find a readable fit
+            # with a bounded binary search, never changing the selected boundary.
+            found = try_size(font_size)
+            if found is None and font_size > 6:
+                lower, upper = 6.0, font_size
+                found = try_size(lower)
                 if found:
-                    break
+                    while upper - lower > .5:
+                        middle = round((lower + upper) / 2, 2)
+                        candidate = try_size(middle)
+                        if candidate:
+                            lower, found = middle, candidate
+                        else:
+                            upper = middle
             if found is None:
                 failed_name = name
-                failed_size = font_size
                 break
             plans[index] = found
             placed.append(found[2] + (-.25, -.25, .25, .25))
         else:
             return plans
     raise LayoutSpaceError(
-        f"Hindi text in '{failed_name}' on page {page.number + 1} cannot fit inside its selected area at {failed_size:g} pt. "
-        "Increase that area's size or select a smaller font size."
+        f"Hindi text in '{failed_name}' on page {page.number + 1} cannot fit inside its selected area even at the minimum 6 pt. "
+        "Increase only that selected area to provide enough room."
     )
 
 
@@ -243,10 +255,18 @@ def apply_translations_to_pdf(input_pdf_path, output_pdf_path, translated_region
             # Shape every field first, then import resources without mutating shaped.
             for index, regions in grouped.items():
                 page = doc[index]
-                spans = [span for block in page.get_text("dict")["blocks"] for line in block.get("lines", []) for span in line["spans"]]
+                spans = [span for block in page.get_text("rawdict")["blocks"] for line in block.get("lines", []) for span in line["spans"]]
                 spans_by_page[index] = spans
-                blockers = [fitz.Rect(span["bbox"]) for span in spans if not any(
-                    ((span["bbox"][0] + span["bbox"][2]) / 2, (span["bbox"][1] + span["bbox"][3]) / 2) in region[0] for region in regions)]
+                blockers = []
+                for span in spans:
+                    bounds = fitz.Rect(span["bbox"])
+                    if not any(bounds.intersects(region[0]) for region in regions):
+                        blockers.append(bounds)
+                    elif not any(region[0].contains(bounds) for region in regions):
+                        # A label and selected name can share one PDF span. Keep only
+                        # the outside characters as obstacles, not the entire span.
+                        blockers.extend(fitz.Rect(char["bbox"]) for char in span.get("chars", [])
+                                        if not any(fitz.Rect(char["bbox"]).intersects(region[0]) for region in regions))
                 blockers += [fitz.Rect(rect) for rect in protected.get(index, [])]
                 for drawing in page.get_drawings():
                     for item in drawing["items"]:

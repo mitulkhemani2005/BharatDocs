@@ -13,6 +13,52 @@ from backend.services.pdf_modifier import (
 
 
 class HindiSpacingTests(unittest.TestCase):
+    def test_short_bill_cell_can_auto_fit_below_eight_points(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary)/'source.pdf', Path(temporary)/'output.pdf'
+            with fitz.open() as doc:
+                doc.new_page(width=300, height=100).insert_text((25, 28), 'NAME', fontsize=6)
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Short cell', 'rect': [20, 20, 220, 29.5], 'hindi_text': 'अशोक ऊँचे ऋषि कूँज'}])
+            with fitz.open(output) as doc:
+                self.assertEqual(len(doc), 1)
+                spans = [span for block in doc[0].get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
+                self.assertTrue(spans)
+                self.assertGreaterEqual(spans[0]['size'], 5.99)
+                self.assertLess(spans[0]['size'], 8)
+
+    def test_only_crowded_area_shrinks_and_everything_stays_inside(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, output = Path(temporary)/'source.pdf', Path(temporary)/'output.pdf'
+            boxes = [fitz.Rect(20, 20, 150, 65), fitz.Rect(20, 100, 250, 170)]
+            with fitz.open() as doc:
+                page = doc.new_page(width=300, height=200)
+                page.insert_text((25, 40), 'NAME', fontsize=6)
+                page.insert_text((25, 125), 'NAME', fontsize=6)
+                before = page.get_pixmap().samples
+                doc.save(source)
+            apply_translations_to_pdf(source, output, [
+                {'page': 0, 'region_name': 'Tight', 'rect': list(boxes[0]), 'font_size': 32, 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'},
+                {'page': 0, 'region_name': 'Roomy', 'rect': list(boxes[1]), 'font_size': 24, 'hindi_text': 'अशोक'},
+            ])
+            with fitz.open(output) as doc:
+                self.assertEqual(len(doc), 1)
+                for box, maximum in zip(boxes, (32, 24)):
+                    spans = [span for block in doc[0].get_text('dict', clip=box)['blocks'] for line in block.get('lines', []) for span in line['spans'] if 'अशोक' in span['text']]
+                    self.assertTrue(spans)
+                    size = spans[0]['size']
+                    self.assertGreaterEqual(size, 7.99)
+                    if maximum == 32:
+                        self.assertLess(size, maximum)
+                    else:
+                        self.assertAlmostEqual(size, maximum, delta=.01)
+                after = doc[0].get_pixmap().samples
+                for y in range(200):
+                    for x in range(300):
+                        if not any((x+.5, y+.5) in box for box in boxes):
+                            start = (y*300+x)*3
+                            self.assertEqual(before[start:start+3], after[start:start+3])
+
     def test_exact_font_and_pixels_outside_selected_area_are_preserved(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / 'source.pdf'
@@ -49,7 +95,7 @@ class HindiSpacingTests(unittest.TestCase):
             with fitz.open() as doc:
                 doc.new_page(width=300, height=200).insert_text((20, 30), 'NAME', fontsize=8)
                 doc.save(source)
-            with self.assertRaisesRegex(PdfProcessingError, "Shop name.*18 pt"):
+            with self.assertRaisesRegex(PdfProcessingError, "Shop name.*6 pt"):
                 apply_translations_to_pdf(source, output, [{'page': 0, 'region_name': 'Shop name', 'rect': [15, 20, 40, 30], 'hindi_text': 'अशोक किराना एवं जनरल स्टोर'}])
             self.assertFalse(output.exists())
 
